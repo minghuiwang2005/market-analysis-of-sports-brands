@@ -1,1 +1,28 @@
+# Dependencies and build output
+/node_modules
+/.next
+/out
+/build
+/coverage
+
+# Local secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Vercel
+.vercel
+
+# TypeScript and logs
+*.tsbuildinfo
+next-env.d.ts
+pnpm-debug.log*
+npm-debug.log*
+
+# OS
 .DS_Store
+*.pem
+
+# Local Superpowers execution ledger
+.superpowers/
