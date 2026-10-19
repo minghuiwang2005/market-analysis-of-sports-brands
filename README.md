@@ -24,7 +24,7 @@
    pnpm install
    ```
 
-2. 在 Neon 创建 PostgreSQL 数据库，复制 `.env.example` 为 `.env.local`。将 Neon 的池化连接串放在 `DATABASE_URL`，直连连接串放在 `DATABASE_URL_UNPOOLED`。这两个变量都只由服务端读取。
+2. 在 Neon 创建 PostgreSQL 数据库，复制 `.env.example` 为 `.env.local`。将 Neon 的池化连接串放在 `DATABASE_URL`，直连连接串放在 `DATABASE_URL_UNPOOLED`。这两个变量都只由服务端读取；`WS_NO_BUFFER_UTIL=1` 用于关闭 `ws` 的可选原生 `bufferutil` 优化，避免 Serverless WebSocket 运行时兼容错误。
 
 3. 建立数据库表和初始 SPU/SKU 字段：
 
@@ -55,8 +55,10 @@
 - `pnpm db:migrate`：使用 `DATABASE_URL_UNPOOLED` 应用尚未执行的迁移。
 - `pnpm db:check`：检查迁移序列。
 
+Vercel 的生产构建会在 Next.js 构建前自动运行 `pnpm db:migrate`，使用 `DATABASE_URL_UNPOOLED` 应用尚未执行的迁移。请在 Vercel 项目中将池化和直连 Neon 连接串分别配置为 `DATABASE_URL` 与 `DATABASE_URL_UNPOOLED`。
+
 初始迁移会创建系统字段和可编辑的商品字段定义，不会插入任何 SPU/SKU 商品样本。
 
 ## 部署边界
 
-项目尚未接入用户认证，也未绑定真实 Vercel/Neon 项目。当前版本用于本机开发或受保护的私有 Preview；在公开部署并开放写入前，需要先接入访问控制并配置对应环境变量。
+项目已部署到 Vercel 并连接 Neon。项目尚未接入用户认证；在公开部署并开放写入前，需要先接入访问控制并配置对应环境变量。
