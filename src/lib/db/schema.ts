@@ -34,6 +34,47 @@ export const modelFieldTypeEnum = pgEnum("model_field_type", [
   "multiselect",
 ]);
 
+export const llmModelConfigs = pgTable(
+  "llm_model_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: varchar("name", { length: 120 }).notNull(),
+    baseUrl: text("base_url").notNull(),
+    model: varchar("model", { length: 200 }).notNull(),
+    apiKeyCiphertext: text("api_key_ciphertext").notNull(),
+    apiKeyIv: varchar("api_key_iv", { length: 24 }).notNull(),
+    apiKeyAuthTag: varchar("api_key_auth_tag", { length: 32 }).notNull(),
+    apiKeyLast4: varchar("api_key_last4", { length: 4 }).notNull(),
+    keyVersion: integer("key_version").notNull().default(1),
+    priority: integer("priority").notNull().default(10),
+    timeoutSeconds: integer("timeout_seconds").notNull().default(60),
+    reasoningEnabled: boolean("reasoning_enabled").notNull().default(false),
+    enabled: boolean("enabled").notNull().default(true),
+    isDefault: boolean("is_default").notNull().default(false),
+    lastTestStatus: varchar("last_test_status", { length: 20 }).notNull().default("untested"),
+    lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+    lastTestMessage: text("last_test_message"),
+    ...timestamps(),
+  },
+  (table) => [
+    check("llm_model_configs_priority_positive", sql`${table.priority} > 0`),
+    check("llm_model_configs_timeout_range", sql`${table.timeoutSeconds} BETWEEN 1 AND 180`),
+    check("llm_model_configs_test_status", sql`${table.lastTestStatus} IN ('untested', 'success', 'failed')`),
+    check("llm_model_configs_default_enabled", sql`NOT ${table.isDefault} OR ${table.enabled}`),
+    uniqueIndex("llm_model_configs_single_default_idx").on(table.isDefault).where(sql`${table.isDefault}`),
+  ],
+);
+
+export const adminLoginAttempts = pgTable(
+  "admin_login_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceHash: varchar("source_hash", { length: 64 }).notNull(),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("admin_login_attempts_source_time_idx").on(table.sourceHash, table.attemptedAt)],
+);
+
 export const modelFields = pgTable(
   "model_fields",
   {

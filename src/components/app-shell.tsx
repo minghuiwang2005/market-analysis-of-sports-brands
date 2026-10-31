@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 
@@ -14,6 +14,15 @@ const navGroups = [
       { href: "/products/model", label: "商品模型" },
       { href: "/products/sales", label: "销售数据" },
     ],
+  },
+  {
+    label: "运动",
+    id: "sports-menu",
+    items: [{ href: "/sports/nba", label: "NBA" }],
+  },
+  {
+    label: "球星",
+    href: "/stars",
   },
   {
     label: "分析",
@@ -41,6 +50,8 @@ function BrandLockup({ onNavigate }: { onNavigate: () => void }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const loginPage = pathname === "/login";
   const navigationRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -58,10 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
   }, []);
 
-  useEffect(() => {
-    setOpenMenu(null);
-    setMobileOpen(false);
-  }, [pathname]);
+  if (loginPage) return <>{children}</>;
 
   return (
     <div className="app-layout">
@@ -82,6 +90,22 @@ export function AppShell({ children }: { children: ReactNode }) {
           }}
         >
           {navGroups.map((group) => {
+            if ("href" in group) {
+              const active = pathname === group.href || pathname.startsWith(`${group.href}/`);
+
+              return (
+                <Link
+                  key={group.href}
+                  className={`nav-trigger${active ? " active" : ""}`}
+                  href={group.href}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => { setOpenMenu(null); setMobileOpen(false); }}
+                >
+                  {group.label}
+                </Link>
+              );
+            }
+
             const activeGroup = group.items.some(({ href }) => pathname === href);
             const expanded = openMenu === group.id;
 
@@ -157,6 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
+        <button type="button" className="logout-button" onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.replace("/login"); }}>退出</button>
       </header>
 
       <main className="main-content">{children}</main>

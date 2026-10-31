@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
-    "db:check": "drizzle-kit check --config drizzle.config.ts"
+    "db:check": "drizzle-kit check --config drizzle.config.ts",
+    "auth:hash-password": "node scripts/hash-admin-password.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

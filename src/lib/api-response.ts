@@ -1,4 +1,6 @@
 import { DatabaseConfigurationError } from "@/lib/db";
+import { headers } from "next/headers";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 export class AppError extends Error {
   readonly status: number;
@@ -87,6 +89,16 @@ export function errorResponse(error: unknown) {
 
 export async function withApiErrors<T>(operation: () => Promise<T>, status = 200) {
   try {
+    const requestHeaders = await headers();
+    const cookie = requestHeaders.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${SESSION_COOKIE}=`));
+    if (!verifySessionToken(cookie?.slice(SESSION_COOKIE.length + 1))) throw new AppError("UNAUTHENTICATED", "请先登录管理员账号。", 401);
+    const origin = requestHeaders.get("origin");
+    if (origin) {
+      const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+      let sourceHost = "";
+      try { sourceHost = new URL(origin).host; } catch { /* rejected below */ }
+      if (!host || sourceHost !== host) throw new AppError("INVALID_ORIGIN", "请求来源校验失败。", 403);
+    }
     return successResponse(await operation(), status);
   } catch (error) {
     return errorResponse(error);

@@ -6,6 +6,8 @@
 
 ## 项目文档
 
+- [管理员与模型参数配置](model-config-setup.md)
+
 项目概览位于 `overview/`，Superpowers 执行计划位于 `superpowers/plans/`。后续研究记录、论文与作品集分别归入 `research/`、`paper/` 和 `portfolio/`。
 
 - [项目详细规划 v2](overview/运动品牌市场分析项目计划-v2.md)

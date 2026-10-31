@@ -1,0 +1,17 @@
+.page { display:grid; min-height:100svh; place-items:center; background:#f5f6f8; padding:24px; }
+.card { width:min(100%,420px); border:1px solid #e6e8ec; border-radius:14px; background:#fff; padding:34px; box-shadow:0 12px 38px #161b2510; }
+.brand { margin:0 0 36px; color:#656b75; font-size:14px; font-weight:700; letter-spacing:-.02em; }
+.brand span { display:block; margin-top:4px; color:#252932; font-size:16px; }
+.kicker { margin:0 0 8px; color:#8e949f; font-size:10px; font-weight:750; letter-spacing:.15em; }
+.card h1 { margin:0; color:#20232a; font-size:27px; letter-spacing:-.04em; }
+.description { margin:8px 0 25px; color:#777d88; font-size:12px; }
+.footer { position:absolute; bottom:21px; margin:0; color:#9aa0aa; font-size:10px; }
+.form { display:grid; gap:15px; }
+.form label { display:grid; gap:6px; color:#3a3e46; font-size:12px; font-weight:650; }
+.form input { height:42px; border:1px solid #d8dbe1; border-radius:7px; outline:none; padding:0 11px; color:#23262d; font:inherit; font-size:13px; font-weight:450; }
+.form input:focus { border-color:#737985; box-shadow:0 0 0 3px #73798720; }
+.form button { min-height:42px; border:0; border-radius:7px; background:#191a1e; color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+.form button:disabled { opacity:.6; cursor:wait; }
+.error { margin:0; border-radius:6px; background:#fff0f0; padding:9px 11px; color:#a63a40; font-size:11px; }
+.setupHint { margin:16px 0 0; color:#8d939e; font-size:10px; line-height:1.55; }
+@media(max-width:480px) { .card { padding:26px 22px; } }
