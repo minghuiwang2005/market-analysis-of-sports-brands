@@ -254,3 +254,109 @@ export const availabilityObservations = pgTable(
   },
   (table) => [index("availability_observations_sku_time_idx").on(table.skuId, table.observedAt)],
 );
+
+export const sportsTimelineEvents = pgTable(
+  "sports_timeline_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventKey: varchar("event_key", { length: 120 }).notNull(),
+    sport: varchar("sport", { length: 30 }).notNull(),
+    eventType: varchar("event_type", { length: 40 }).notNull(),
+    category: varchar("category", { length: 40 }).notNull(),
+    occurredYear: integer("occurred_year").notNull(),
+    occurredMonth: integer("occurred_month"),
+    occurredDay: integer("occurred_day"),
+    datePrecision: varchar("date_precision", { length: 10 }).notNull(),
+    athleteNameZh: varchar("athlete_name_zh", { length: 120 }),
+    athleteNameEn: varchar("athlete_name_en", { length: 160 }),
+    organization: varchar("organization", { length: 120 }),
+    title: varchar("title", { length: 240 }).notNull(),
+    description: text("description").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    published: boolean("published").notNull().default(false),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("sports_timeline_events_event_key_unique").on(table.eventKey),
+    index("sports_timeline_events_sport_published_year_order_idx").on(
+      table.sport,
+      table.published,
+      table.occurredYear,
+      table.sortOrder,
+    ),
+    check("sports_timeline_events_year_range_check", sql`${table.occurredYear} BETWEEN 1800 AND 2200`),
+    check(
+      "sports_timeline_events_date_parts_check",
+      sql`(
+        (${table.datePrecision} = 'year' AND ${table.occurredMonth} IS NULL AND ${table.occurredDay} IS NULL)
+        OR (
+          ${table.datePrecision} = 'month'
+          AND ${table.occurredMonth} IS NOT NULL
+          AND ${table.occurredMonth} BETWEEN 1 AND 12
+          AND ${table.occurredDay} IS NULL
+        )
+        OR (
+          ${table.datePrecision} = 'day'
+          AND ${table.occurredMonth} IS NOT NULL
+          AND ${table.occurredDay} IS NOT NULL
+          AND ${table.occurredMonth} BETWEEN 1 AND 12
+          AND ${table.occurredDay} BETWEEN 1 AND CASE
+            WHEN ${table.occurredMonth} IN (1, 3, 5, 7, 8, 10, 12) THEN 31
+            WHEN ${table.occurredMonth} IN (4, 6, 9, 11) THEN 30
+            WHEN ${table.occurredMonth} = 2 THEN CASE
+              WHEN (${table.occurredYear} % 400 = 0) OR (${table.occurredYear} % 4 = 0 AND ${table.occurredYear} % 100 <> 0) THEN 29
+              ELSE 28
+            END
+            ELSE 0
+          END
+        )
+      )`,
+    ),
+    check(
+      "sports_timeline_events_type_category_check",
+      sql`(
+        (${table.eventType} = 'league_milestone'
+          AND ${table.category} IN ('league', 'rules', 'people', 'global', 'culture')
+          AND ${table.athleteNameZh} IS NULL
+          AND ${table.athleteNameEn} IS NULL
+          AND ${table.organization} IS NULL)
+        OR (${table.eventType} = 'athlete_signing'
+          AND ${table.category} = 'athlete_signing'
+          AND ${table.athleteNameZh} IS NOT NULL
+          AND ${table.athleteNameEn} IS NOT NULL
+          AND ${table.organization} IS NOT NULL)
+      )`,
+    ),
+  ],
+);
+
+export const sportsTimelineEventSources = pgTable(
+  "sports_timeline_event_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => sportsTimelineEvents.id, { onDelete: "restrict" }),
+    url: text("url").notNull(),
+    publisher: varchar("publisher", { length: 160 }).notNull(),
+    sourceTitle: varchar("source_title", { length: 300 }).notNull(),
+    publishedAt: date("published_at", { mode: "string" }),
+    claimScope: varchar("claim_scope", { length: 40 }).notNull(),
+    evidenceNote: text("evidence_note").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    verificationStatus: varchar("verification_status", { length: 24 }).notNull().default("needs_review"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("sports_timeline_event_sources_event_url_unique").on(table.eventId, table.url),
+    index("sports_timeline_event_sources_event_status_idx").on(table.eventId, table.verificationStatus),
+    check(
+      "sports_timeline_event_sources_claim_scope_check",
+      sql`${table.claimScope} IN ('league_event', 'athlete_signing')`,
+    ),
+    check(
+      "sports_timeline_event_sources_verification_status_check",
+      sql`${table.verificationStatus} IN ('verified', 'needs_review')`,
+    ),
+  ],
+);

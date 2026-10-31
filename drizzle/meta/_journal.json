@@ -15,6 +15,20 @@
       "when": 1793411411304,
       "tag": "0001_tired_tenebrous",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793414454482,
+      "tag": "0002_illegal_viper",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793414796594,
+      "tag": "0003_same_fat_cobra",
+      "breakpoints": true
     }
   ]
 }

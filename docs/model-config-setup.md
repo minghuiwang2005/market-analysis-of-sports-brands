@@ -4,7 +4,7 @@
 
 ## 本地开发
 
-1. 在项目目录运行 `pnpm auth:hash-password`，输入至少 12 位的管理员密码。命令不会回显密码，并输出 `ADMIN_PASSWORD_HASH`。
+1. 在项目目录运行 `pnpm auth:hash-password`，输入至少 12 位的管理员密码。命令不会回显密码，并输出适用于 `.env.local` 的 `ADMIN_PASSWORD_HASH`；复制到 Vercel 环境变量时，把其中的 `\$` 还原为 `$`。
 2. 复制 `.env.example` 为 `.env.local`，填写 `ADMIN_USERNAME`、上一步生成的 `ADMIN_PASSWORD_HASH`。
 3. 分别生成会话密钥和 API Key 加密密钥：
 

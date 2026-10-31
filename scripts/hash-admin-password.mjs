@@ -21,7 +21,8 @@ process.stdin.on("data", (chunk) => {
       const salt = randomBytes(16);
       const key = scryptSync(password, salt, 64);
       password = "";
-      process.stdout.write(`ADMIN_PASSWORD_HASH=scrypt$${salt.toString("hex")}$${key.toString("hex")}\n`);
+      const encoded = `scrypt$${salt.toString("hex")}$${key.toString("hex")}`.replaceAll("$", "\\$");
+      process.stdout.write(`ADMIN_PASSWORD_HASH=${encoded}\n`);
       process.exit(0);
     }
     if (char === "\u007f" || char === "\b") password = password.slice(0, -1);
