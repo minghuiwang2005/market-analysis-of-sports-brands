@@ -29,6 +29,27 @@
       "when": 1793414796594,
       "tag": "0003_same_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793415966108,
+      "tag": "0004_smooth_gladiator",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793416343000,
+      "tag": "0005_kobe_photo_credit",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793416493000,
+      "tag": "0006_shoe_source_review",
+      "breakpoints": true
     }
   ]
 }

@@ -360,3 +360,146 @@ export const sportsTimelineEventSources = pgTable(
     ),
   ],
 );
+
+export type AthleteCareerHighlight = {
+  value: string;
+  label: string;
+};
+
+export type AthleteRepresentativeModel = {
+  name: string;
+  releaseYear?: number;
+  designer?: string;
+  description?: string;
+  image?: {
+    url: string;
+    alt: string;
+    sourceUrl: string;
+    credit: string;
+    license: string;
+    licenseUrl: string;
+  };
+};
+
+export const starSports = pgTable(
+  "star_sports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: varchar("slug", { length: 40 }).notNull().unique(),
+    nameZh: varchar("name_zh", { length: 60 }).notNull(),
+    nameEn: varchar("name_en", { length: 80 }).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    contentStatus: varchar("content_status", { length: 20 }).notNull().default("coming_soon"),
+    intro: text("intro"),
+    ...timestamps(),
+  },
+  (table) => [
+    check("star_sports_content_status_check", sql`${table.contentStatus} IN ('active', 'coming_soon')`),
+    index("star_sports_status_order_idx").on(table.contentStatus, table.sortOrder),
+  ],
+);
+
+export const starAthletes = pgTable(
+  "star_athletes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: varchar("slug", { length: 100 }).notNull().unique(),
+    sportId: uuid("sport_id")
+      .notNull()
+      .references(() => starSports.id, { onDelete: "restrict" }),
+    nameZh: varchar("name_zh", { length: 120 }).notNull(),
+    nameEn: varchar("name_en", { length: 160 }).notNull(),
+    league: varchar("league", { length: 80 }),
+    position: varchar("position", { length: 80 }),
+    teamsSummary: text("teams_summary"),
+    nationality: varchar("nationality", { length: 80 }),
+    birthDate: date("birth_date", { mode: "string" }),
+    heightCm: integer("height_cm"),
+    jerseyNumber: varchar("jersey_number", { length: 12 }),
+    bio: text("bio").notNull(),
+    portraitUrl: text("portrait_url"),
+    portraitAlt: text("portrait_alt"),
+    portraitSourceUrl: text("portrait_source_url"),
+    portraitCredit: varchar("portrait_credit", { length: 240 }),
+    portraitLicense: varchar("portrait_license", { length: 80 }),
+    portraitLicenseUrl: text("portrait_license_url"),
+    careerHighlights: jsonb("career_highlights").$type<AthleteCareerHighlight[]>().notNull().default([]),
+    sortOrder: integer("sort_order").notNull().default(0),
+    published: boolean("published").notNull().default(false),
+    ...timestamps(),
+  },
+  (table) => [
+    index("star_athletes_sport_published_order_idx").on(table.sportId, table.published, table.sortOrder),
+    check(
+      "star_athletes_published_portrait_check",
+      sql`NOT ${table.published} OR (
+        ${table.portraitUrl} IS NOT NULL
+        AND ${table.portraitAlt} IS NOT NULL
+        AND ${table.portraitSourceUrl} IS NOT NULL
+        AND ${table.portraitCredit} IS NOT NULL
+        AND ${table.portraitLicense} IS NOT NULL
+        AND ${table.portraitLicenseUrl} IS NOT NULL
+      )`,
+    ),
+    check("star_athletes_height_positive_check", sql`${table.heightCm} IS NULL OR ${table.heightCm} BETWEEN 100 AND 250`),
+  ],
+);
+
+export const athleteShoeLines = pgTable(
+  "athlete_shoe_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    athleteId: uuid("athlete_id")
+      .notNull()
+      .references(() => starAthletes.id, { onDelete: "restrict" }),
+    brand: varchar("brand", { length: 80 }).notNull(),
+    lineName: varchar("line_name", { length: 120 }).notNull(),
+    relationshipStatus: varchar("relationship_status", { length: 20 }).notNull(),
+    startedYear: integer("started_year"),
+    endedYear: integer("ended_year"),
+    representativeModels: jsonb("representative_models").$type<AthleteRepresentativeModel[]>().notNull().default([]),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("athlete_shoe_lines_athlete_line_unique").on(table.athleteId, table.lineName),
+    index("athlete_shoe_lines_athlete_status_order_idx").on(table.athleteId, table.relationshipStatus, table.sortOrder),
+    check("athlete_shoe_lines_brand_check", sql`${table.brand} IN ('Nike', 'Jordan Brand')`),
+    check("athlete_shoe_lines_status_check", sql`${table.relationshipStatus} IN ('current', 'historical')`),
+    check("athlete_shoe_lines_year_check", sql`
+      (${table.startedYear} IS NULL OR ${table.startedYear} BETWEEN 1900 AND 2200)
+      AND (${table.endedYear} IS NULL OR ${table.endedYear} BETWEEN 1900 AND 2200)
+      AND (${table.endedYear} IS NULL OR ${table.startedYear} IS NULL OR ${table.endedYear} >= ${table.startedYear})
+    `),
+  ],
+);
+
+export const athleteSources = pgTable(
+  "athlete_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    athleteId: uuid("athlete_id")
+      .notNull()
+      .references(() => starAthletes.id, { onDelete: "restrict" }),
+    shoeLineId: uuid("shoe_line_id").references(() => athleteShoeLines.id, { onDelete: "restrict" }),
+    sourceUrl: text("source_url").notNull(),
+    publisher: varchar("publisher", { length: 160 }).notNull(),
+    title: varchar("title", { length: 300 }).notNull(),
+    publishedAt: date("published_at", { mode: "string" }),
+    claimScope: varchar("claim_scope", { length: 40 }).notNull(),
+    evidenceNote: text("evidence_note").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    verificationStatus: varchar("verification_status", { length: 24 }).notNull().default("needs_review"),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("athlete_sources_athlete_url_scope_unique").on(table.athleteId, table.sourceUrl, table.claimScope),
+    index("athlete_sources_athlete_status_idx").on(table.athleteId, table.verificationStatus),
+    index("athlete_sources_shoe_line_idx").on(table.shoeLineId),
+    check(
+      "athlete_sources_claim_scope_check",
+      sql`${table.claimScope} IN ('biography', 'signature_line', 'partnership_status', 'portrait', 'image_license', 'career_highlight')`,
+    ),
+    check("athlete_sources_verification_status_check", sql`${table.verificationStatus} IN ('verified', 'needs_review')`),
+  ],
+);

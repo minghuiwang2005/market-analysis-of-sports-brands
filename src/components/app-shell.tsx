@@ -21,8 +21,14 @@ const navGroups = [
     items: [{ href: "/sports/nba", label: "NBA" }],
   },
   {
-    label: "球星",
-    href: "/stars",
+    label: "明星",
+    id: "stars-menu",
+    items: [
+      { href: "/stars/basketball", label: "篮球" },
+      { href: "/stars/football", label: "足球" },
+      { href: "/stars/tennis", label: "网球" },
+      { href: "/stars/athletics", label: "田径" },
+    ],
   },
   {
     label: "分析",
@@ -90,23 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           }}
         >
           {navGroups.map((group) => {
-            if ("href" in group) {
-              const active = pathname === group.href || pathname.startsWith(`${group.href}/`);
-
-              return (
-                <Link
-                  key={group.href}
-                  className={`nav-trigger${active ? " active" : ""}`}
-                  href={group.href}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => { setOpenMenu(null); setMobileOpen(false); }}
-                >
-                  {group.label}
-                </Link>
-              );
-            }
-
-            const activeGroup = group.items.some(({ href }) => pathname === href);
+            const activeGroup = group.items.some(({ href }) => pathname === href || pathname.startsWith(`${href}/`));
             const expanded = openMenu === group.id;
 
             return (
