@@ -36,6 +36,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
+  if (apiPath) return NextResponse.next();
   if (internalLocale) return NextResponse.next();
   const cookieLocale = request.cookies.get(localeCookie)?.value;
   const locale = isLocale(cookieLocale) ? cookieLocale : "zh";
