@@ -17,7 +17,7 @@ import { ArchiveConfirmation } from "@/components/archive-confirmation";
 import { ProductRecordForm } from "@/components/product-form";
 import { LocaleLink } from "@/lib/i18n/locale-link";
 import { useLocale } from "@/lib/i18n/locale-provider";
-import { formatLocaleDate, formatLocaleNumber, formatProductValue, translatedApiError, translatedFieldError, translatedFieldLabel } from "@/lib/i18n/display";
+import { formatLocaleDate, formatLocaleNumber, formatProductFieldValue, formatProductValue, translatedApiError, translatedFieldError, translatedFieldLabel } from "@/lib/i18n/display";
 import type { Locale, TranslationKey } from "@/lib/i18n/types";
 import type { ModelFieldDto, ProductLevel, SpuDetailDto, SpuSkuPageDto, SkuDetailDto } from "@/lib/products/types";
 
@@ -219,7 +219,7 @@ export function ProductDetailPage({ spuId }: { spuId: string }) {
         <DetailCell label={t("productDetail.spuCode")} value={detail.spuCode} locale={locale} empty={t("productDetail.empty")} />
         <DetailCell label={t("productForm.nameProduct")} value={detail.name} locale={locale} empty={t("productDetail.empty")} />
         <DetailCell label={t("productForm.brand")} value={detail.brand} locale={locale} empty={t("productDetail.empty")} />
-        {detail.fields.map((field) => <DetailCell key={field.key} label={translatedFieldLabel(field.key, field.label, t)} value={field.value} locale={locale} empty={t("productDetail.empty")} type={field.type} />)}
+        {detail.fields.map((field) => <DetailCell key={field.key} fieldKey={field.key} label={translatedFieldLabel(field.key, field.label, t)} value={field.value} locale={locale} empty={t("productDetail.empty")} type={field.type} />)}
       </div>
     </section>
 
@@ -258,8 +258,8 @@ export function ProductDetailPage({ spuId }: { spuId: string }) {
   </section>;
 }
 
-function DetailCell({ label, value, locale, empty, type }: { label: string; value: unknown; locale: Locale; empty: string; type?: ModelFieldDto["type"] }) {
-  return <div className="detail-cell"><label>{label}</label><p>{formatProductValue(value, locale, empty, type)}</p></div>;
+function DetailCell({ label, value, locale, empty, type, fieldKey }: { label: string; value: unknown; locale: Locale; empty: string; type?: ModelFieldDto["type"]; fieldKey?: string }) {
+  return <div className="detail-cell"><label>{label}</label><p>{fieldKey ? formatProductFieldValue(fieldKey, value, locale, empty, type) : formatProductValue(value, locale, empty, type)}</p></div>;
 }
 
 function SkuRecordCard({
@@ -287,7 +287,7 @@ function SkuRecordCard({
       <DetailCell label={t("productDetail.skuCode")} value={sku.skuCode} locale={locale} empty={empty} />
       <DetailCell label={t("productDetail.skuName")} value={sku.name} locale={locale} empty={empty} />
       <DetailCell label={t("productDetail.createdAt")} value={formatLocaleDate(sku.createdAt, locale, { dateStyle: "medium", timeStyle: "short" })} locale={locale} empty={empty} />
-      {sku.fields.map((field) => <DetailCell key={field.key} label={translatedFieldLabel(field.key, field.label, t)} value={field.value} locale={locale} empty={empty} type={field.type} />)}
+      {sku.fields.map((field) => <DetailCell key={field.key} fieldKey={field.key} label={translatedFieldLabel(field.key, field.label, t)} value={field.value} locale={locale} empty={empty} type={field.type} />)}
     </div>
   </article>;
 }

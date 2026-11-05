@@ -20,7 +20,7 @@ import { ArchiveConfirmation } from "@/components/archive-confirmation";
 import { ProductRecordForm } from "@/components/product-form";
 import { LocaleLink } from "@/lib/i18n/locale-link";
 import { useLocale } from "@/lib/i18n/locale-provider";
-import { formatLocaleDate, formatLocaleNumber, formatProductValue, translatedApiError, translatedFieldError, translatedFieldLabel } from "@/lib/i18n/display";
+import { formatLocaleDate, formatLocaleNumber, formatProductFieldValue, formatProductValue, translatedApiError, translatedFieldError, translatedFieldLabel } from "@/lib/i18n/display";
 import type { ModelFieldDto, ProductLevel, SpuDetailDto, SpuListItemDto, SkuDetailDto } from "@/lib/products/types";
 import type { TranslationKey } from "@/lib/i18n/types";
 
@@ -31,7 +31,12 @@ type ArchiveTarget = { id: string; name: string; skuCount: number };
 
 const pageSize = 20;
 const primaryKeys = new Set(["category", "sport", "series"]);
-const sportFilterValues = { basketball: "篮球", football: "足球", athletics: "田径", tennis: "网球" } as const;
+const sportFilterValues = {
+  basketball: { zh: "篮球", en: "Basketball" },
+  football: { zh: "足球", en: "Football" },
+  athletics: { zh: "田径", en: "Track & Field" },
+  tennis: { zh: "网球", en: "Tennis" },
+} as const;
 
 function interpolate(template: string, values: Record<string, string | number>, locale: "zh" | "en") {
   return Object.entries(values).reduce((result, [key, value]) => result.replaceAll(`{${key}}`, typeof value === "number" ? formatLocaleNumber(value, locale) : value), template);
@@ -198,7 +203,7 @@ export function ProductsPage() {
           <input className="select-input filter-input" value={brand} onChange={(event) => changeFilter(setBrand, event.target.value)} placeholder={t("products.brandFilter")} aria-label={t("products.brandFilterLabel")} />
           <select className="select-input filter-input" value={sport} onChange={(event) => changeFilter(setSport, event.target.value)} aria-label={t("products.sportFilterLabel")}>
             <option value="">{t("products.sportFilter")}</option>
-            {(["basketball", "football", "athletics", "tennis"] as const).map((key) => <option key={key} value={sportFilterValues[key]}>{t(`stars.sports.${key}`)}</option>)}
+            {(["basketball", "football", "athletics", "tennis"] as const).map((key) => <option key={key} value={sportFilterValues[key][locale]}>{t(`stars.sports.${key}`)}</option>)}
           </select>
           <input className="select-input filter-input" value={athlete} onChange={(event) => changeFilter(setAthlete, event.target.value)} placeholder={t("products.athleteFilter")} aria-label={t("products.athleteFilterLabel")} />
         </div>
@@ -284,8 +289,8 @@ function ProductRows({
     <tr>
       <td><div className="product-name">{item.name}</div><div className="code-text" style={{ marginTop: 3 }}>{item.spuCode}</div>{item.archivedAt && <span className="tag archived" style={{ marginTop: 5 }}>{t("products.archived")}</span>}</td>
       <td>{item.brand || "—"}</td>
-      <td>{formatProductValue(item.values.category, locale)}</td>
-      <td>{formatProductValue(item.values.sport, locale)}</td>
+      <td>{formatProductFieldValue("category", item.values.category, locale)}</td>
+      <td>{formatProductFieldValue("sport", item.values.sport, locale)}</td>
       <td>{formatProductValue(item.values.series, locale)}</td>
       {customColumns.map((field) => <td key={field.id}>{formatProductValue(item.values[field.key], locale, "—", field.type)}</td>)}
       <td><span className="sku-count">{formatLocaleNumber(item.skuCount, locale)}</span></td>

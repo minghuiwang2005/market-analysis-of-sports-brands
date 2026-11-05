@@ -28,11 +28,12 @@ export function generateStaticParams() {
 function scopeLabel(scope: string, copy: ReturnType<typeof getLocaleMessages>["stars"]) {
   if (scope === "biography" || scope === "career_highlight") return copy.sourcesBiography;
   if (scope === "signature_line") return copy.sourcesSignature;
+  if (scope === "partnership_status") return copy.sourcesPartnership;
   return copy.sourcesPortrait;
 }
 
 function SourceLinks({ athlete, copy, locale }: { athlete: AthleteProfile; copy: ReturnType<typeof getLocaleMessages>["stars"]; locale: Locale }) {
-  const sources = athlete.sources.filter((source) => ["biography", "career_highlight", "signature_line"].includes(source.claimScope));
+  const sources = athlete.sources.filter((source) => ["biography", "career_highlight", "signature_line", "partnership_status"].includes(source.claimScope));
 
   return (
     <div className={styles.sourceLinks} aria-label={`${locale === "en" ? athlete.nameEn : athlete.nameZh} · ${copy.sourceLabel}`}>
@@ -64,6 +65,7 @@ function ShoeLine({ athlete, copy, locale }: { athlete: AthleteProfile; copy: Re
           <span className={`${styles.lineStatus} ${line.relationshipStatus === "current" ? styles.lineCurrent : styles.lineHistoric}`}>
             {line.relationshipStatus === "current" ? copy.continued : copy.historical}
           </span>
+          <span className={styles.relationshipType}>{line.relationshipType === "signature" ? copy.signatureRelationship : copy.endorsementRelationship}</span>
           <strong>{line.lineName}</strong>
           <span>{line.brand}{line.startedYear ? ` · ${line.startedYear} ${copy.startedSuffix}` : ""}{line.endedYear ? `–${line.endedYear}` : ""}</span>
           {line.representativeModels.length > 0 && (
@@ -206,6 +208,35 @@ function BasketballDirectory({ data, copy, locale }: { data: StarSportPageData; 
   );
 }
 
+function SportDirectory({ data, copy, locale }: { data: StarSportPageData; copy: ReturnType<typeof getLocaleMessages>["stars"]; locale: Locale }) {
+  const sportName = copy.sports[data.slug as keyof typeof copy.sports];
+  return (
+    <div className={styles.page}>
+      <header className={styles.pageHeader}>
+        <div>
+          <p className={styles.eyebrow}>{copy.athletesEyebrow} / {sportName}</p>
+          <h1>{sportName}<span>{copy.signatureAthletes}</span></h1>
+        </div>
+      </header>
+      {data.intro && <p className={styles.sportIntro}>{data.intro}</p>}
+      <div className={styles.directoryMeta}>
+        <span>{copy.athleteProfiles} <strong>{formatCount(data.athletes.length, locale)}</strong></span>
+        <span>{copy.signatureRelationship} <strong>{formatCount(data.athletes.filter((athlete) => athlete.shoeLines.some((line) => line.relationshipType === "signature")).length, locale)}</strong></span>
+        <span>{copy.endorsementRelationship} <strong>{formatCount(data.athletes.filter((athlete) => athlete.shoeLines.some((line) => line.relationshipType === "endorsement")).length, locale)}</strong></span>
+      </div>
+      {data.athletes.length > 0 ? (
+        <section className={styles.rosterSection} aria-label={`${sportName} ${copy.athleteProfiles}`}>
+          <div className={styles.rosterGrid}>
+            {data.athletes.map((athlete, index) => <AthleteCard key={athlete.slug} athlete={athlete} index={index + 1} copy={copy} locale={locale} />)}
+          </div>
+        </section>
+      ) : (
+        <p className={styles.status} role="status">{copy.noAthletes}</p>
+      )}
+    </div>
+  );
+}
+
 function ComingSoon({ data, copy }: { data: StarSportPageData; copy: ReturnType<typeof getLocaleMessages>["stars"] }) {
   return (
     <div className={styles.page}>
@@ -235,7 +266,10 @@ async function SportContent({ slug, locale }: { slug: string; locale: Locale }) 
   }
 
   if (!data) notFound();
-  return data.contentStatus === "active" ? <BasketballDirectory data={data} copy={copy} locale={locale} /> : <ComingSoon data={data} copy={copy} />;
+  if (data.contentStatus !== "active") return <ComingSoon data={data} copy={copy} />;
+  return slug === "basketball"
+    ? <BasketballDirectory data={data} copy={copy} locale={locale} />
+    : <SportDirectory data={data} copy={copy} locale={locale} />;
 }
 
 function LoadingState({ locale }: { locale: Locale }) {

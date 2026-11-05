@@ -128,9 +128,16 @@ function customFilter(fieldId: string | undefined, value: string) {
 
 const sportValueAliases: Record<string, string[]> = {
   "篮球": ["篮球", "basketball"],
+  "Basketball": ["篮球", "basketball"],
   "足球": ["足球", "football", "soccer"],
+  "Football": ["足球", "football", "soccer"],
+  "Soccer": ["足球", "football", "soccer"],
   "田径": ["田径", "athletics", "track and field", "track & field", "track-and-field"],
+  "Athletics": ["田径", "athletics", "track and field", "track & field", "track-and-field"],
+  "Track & Field": ["田径", "athletics", "track and field", "track & field", "track-and-field"],
+  "Track and Field": ["田径", "athletics", "track and field", "track & field", "track-and-field"],
   "网球": ["网球", "tennis"],
+  "Tennis": ["网球", "tennis"],
 };
 
 function sportFilter(fieldId: string | undefined, value: string) {

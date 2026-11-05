@@ -149,6 +149,33 @@ export function formatProductValue(value: unknown, locale: Locale, empty = "—"
   return String(value);
 }
 
+const fieldValueTranslations: Record<string, Record<string, { zh: string; en: string }>> = {
+  sport: {
+    "篮球": { zh: "篮球", en: "Basketball" }, basketball: { zh: "篮球", en: "Basketball" },
+    "足球": { zh: "足球", en: "Football" }, football: { zh: "足球", en: "Football" }, soccer: { zh: "足球", en: "Football" },
+    "田径": { zh: "田径", en: "Track & Field" }, athletics: { zh: "田径", en: "Track & Field" }, "track & field": { zh: "田径", en: "Track & Field" }, "track and field": { zh: "田径", en: "Track & Field" },
+    "网球": { zh: "网球", en: "Tennis" }, tennis: { zh: "网球", en: "Tennis" },
+  },
+  category: {
+    "篮球鞋": { zh: "篮球鞋", en: "Basketball shoes" }, "basketball shoes": { zh: "篮球鞋", en: "Basketball shoes" },
+    "足球鞋": { zh: "足球鞋", en: "Football boots" }, "football boots": { zh: "足球鞋", en: "Football boots" },
+    "网球鞋": { zh: "网球鞋", en: "Tennis shoes" }, "tennis shoes": { zh: "网球鞋", en: "Tennis shoes" },
+    "田径钉鞋": { zh: "田径钉鞋", en: "Track spikes" }, "track spikes": { zh: "田径钉鞋", en: "Track spikes" },
+    "跑鞋": { zh: "跑鞋", en: "Running shoes" }, "running shoes": { zh: "跑鞋", en: "Running shoes" },
+  },
+};
+
+export function formatProductFieldValue(key: string, value: unknown, locale: Locale, empty = "—", type?: ProductFieldType) {
+  if (value === null || value === undefined || value === "") return empty;
+  const translate = (item: unknown) => {
+    const text = String(item);
+    return fieldValueTranslations[key]?.[text.toLocaleLowerCase("en-US")]?.[locale] ?? text;
+  };
+  if (Array.isArray(value)) return value.map(translate).join(locale === "en" ? ", " : "、") || empty;
+  if (key === "sport" || key === "category") return translate(value);
+  return formatProductValue(value, locale, empty, type);
+}
+
 export function formatLocaleDate(value: string | Date, locale: Locale, options: Intl.DateTimeFormatOptions = { dateStyle: "medium" }) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);

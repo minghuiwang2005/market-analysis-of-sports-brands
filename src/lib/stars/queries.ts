@@ -14,6 +14,7 @@ import {
 export type AthleteShoeLine = {
   brand: string;
   lineName: string;
+  relationshipType: "signature" | "endorsement";
   relationshipStatus: "current" | "historical";
   startedYear: number | null;
   endedYear: number | null;
@@ -101,7 +102,8 @@ export async function getStarSportPageData(slug: string, locale: Locale = "zh"):
     const lines = linesByAthlete.get(line.athleteId) ?? [];
     lines.push({
       brand: line.brand,
-      lineName: line.lineName,
+      lineName: locale === "en" ? line.lineNameEn ?? line.lineName : line.lineName,
+      relationshipType: line.relationshipType as AthleteShoeLine["relationshipType"],
       relationshipStatus: line.relationshipStatus as AthleteShoeLine["relationshipStatus"],
       startedYear: line.startedYear,
       endedYear: line.endedYear,
@@ -125,7 +127,7 @@ export async function getStarSportPageData(slug: string, locale: Locale = "zh"):
     .filter((athlete) => {
       const scopes = verifiedScopes.get(athlete.id);
       return Boolean(
-        scopes?.has("signature_line") &&
+        (scopes?.has("signature_line") || scopes?.has("partnership_status")) &&
         scopes.has("portrait") &&
         scopes.has("image_license") &&
         (linesByAthlete.get(athlete.id)?.length ?? 0) > 0,

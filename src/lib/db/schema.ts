@@ -521,6 +521,8 @@ export const athleteShoeLines = pgTable(
       .references(() => starAthletes.id, { onDelete: "restrict" }),
     brand: varchar("brand", { length: 80 }).notNull(),
     lineName: varchar("line_name", { length: 120 }).notNull(),
+    lineNameEn: varchar("line_name_en", { length: 120 }),
+    relationshipType: varchar("relationship_type", { length: 24 }).notNull().default("signature"),
     relationshipStatus: varchar("relationship_status", { length: 20 }).notNull(),
     startedYear: integer("started_year"),
     endedYear: integer("ended_year"),
@@ -532,6 +534,7 @@ export const athleteShoeLines = pgTable(
     uniqueIndex("athlete_shoe_lines_athlete_line_unique").on(table.athleteId, table.lineName),
     index("athlete_shoe_lines_athlete_status_order_idx").on(table.athleteId, table.relationshipStatus, table.sortOrder),
     check("athlete_shoe_lines_brand_check", sql`${table.brand} IN ('Nike', 'Jordan Brand')`),
+    check("athlete_shoe_lines_relationship_type_check", sql`${table.relationshipType} IN ('signature', 'endorsement')`),
     check("athlete_shoe_lines_status_check", sql`${table.relationshipStatus} IN ('current', 'historical')`),
     check("athlete_shoe_lines_year_check", sql`
       (${table.startedYear} IS NULL OR ${table.startedYear} BETWEEN 1900 AND 2200)
