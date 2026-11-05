@@ -2,7 +2,7 @@
 
 > **执行方式：** Native，由当前执行者在既有 `main` 工作区逐项实现。
 
-**目标：** 将明星目录接入 Neon，提供总计 15 位（乔丹及另外 14 位）Nike/Jordan 签名鞋 NBA 球员档案与足球、网球、田径建设中页面。
+**目标：** 将明星目录接入 Neon，提供 31 位 NBA 现役及历史 Nike/Jordan 已推出签名鞋球员档案与足球、网球、田径建设中页面。本计划在 2026-11-05 增加扩充任务，初版交付任务作为实现记录保留。
 
 **架构：** Drizzle 定义运动分类、球员、签名鞋关系和来源表；版本化迁移创建表并幂等写入首批资料。server-only 查询层将 Neon 数据组合为页面 DTO；App Router 页面只展示 DTO，旧 `/stars` 入口重定向至篮球页。
 
@@ -13,7 +13,8 @@
 ## 全局约束
 
 - “明星”一级菜单的二级菜单顺序为篮球、足球、网球、田径。
-- `/stars/basketball` 展示乔丹及另外 14 位 NBA 球员；本名单共 15 位，是首批样本，不宣称穷尽 NBA 历史。
+- `/stars/basketball` 展示现有 15 位和新增 16 位 NBA 球员；球员须有已推出个人签名鞋的来源证据及有许可的图片。
+- 分类仅通过顶部“明星”菜单切换；页面不重复显示运动分类标签，也不显示研究样本/方法免责声明。
 - 目录资料只从 Neon 读取；Neon 查询或迁移失败时显示明确错误，不以页面常量伪装数据成功。
 - 只发布拥有可追溯签名鞋证据、图片源页面和许可信息的档案；其余图片使用占位。
 - 足球、网球、田径在 Neon 分类状态为 `coming_soon`，不显示虚构档案。
@@ -30,7 +31,7 @@
 ## 文件职责
 
 - `src/lib/db/schema.ts`：四张明星目录表及索引、约束。
-- `drizzle/0004_*.sql` 至 `0006_*.sql` 与 `drizzle/meta/*`：分类、球员、签名鞋、来源和署名修订迁移。
+- `drizzle/0004_*.sql` 至 `0007_*.sql` 与 `drizzle/meta/*`：分类、球员、签名鞋、来源和署名修订迁移。
 - `src/lib/stars/queries.ts`：只在服务端读取分类目录并组装 DTO。
 - `src/components/app-shell.tsx`：明星下拉导航与子路由高亮。
 - `src/app/stars/page.tsx`：兼容旧链接并重定向。
@@ -85,3 +86,24 @@
 - [x] 运行 `pnpm db:check`、`pnpm typecheck`、`pnpm lint`、`pnpm build`；均通过。
 - [x] 运行 `git diff --check` 并扫描迁移/代码是否包含连接串或密钥；未发现。
 - [x] 记录交付边界：Neon 迁移已应用；代码尚未提交、推送或部署。
+
+### Task 6：扩充签名鞋球员目录与精简页面
+
+**文件：** 新增 `drizzle/0007_expand_nba_signature_athletes.sql`；修改 `src/app/stars/[sport]/page.tsx`、`page.module.css`、`src/lib/stars/queries.ts` 与本计划/规格。
+
+- [x] 新增 David Robinson、Charles Barkley、Penny Hardaway、Jason Kidd、Scottie Pippen、Alonzo Mourning、Kevin Garnett、Gary Payton、Tim Duncan、Vince Carter、Dwyane Wade，共 11 位档案及签名鞋关系。
+- [x] 为每个新增档案保存球员资料、签名鞋、照片来源、照片作者与许可证的核验来源。
+- [x] 迁移种子使用稳定 slug 与 `ON CONFLICT` 更新，且只新增记录、更新篮球分类简介。
+- [x] 删除页面内运动分类切换、研究样本数字和方法说明；保留当前/历史系列事实分组。
+- [x] 移除查询层的 15 人硬阈值，继续将 `active` 分类无已发布档案视为数据完整性错误。
+- [x] 在 Neon 应用迁移，并确认 26 位档案都有签名鞋、肖像和许可来源；当前系列 10 位，历史系列 16 位。
+
+### Task 7：补齐可核验的历史签名型号
+
+**文件：** 新增 `drizzle/0008_additional_historical_nike_signatures.sql`；修改本计划和明星目录规格。
+
+- [x] 补充 Dennis Rodman、Chris Webber、Tim Hardaway、Steve Nash、Paul Pierce，共 5 位拥有可查证 Nike 历史签名鞋型号的 NBA 球员。
+- [x] 对每条鞋款关系分别记录型号证据，并为照片记录作者、文件页和 CC 许可。
+- [x] 将清单扩至 31 位；George Gervin 的 Blazer 专属改款未公开零售，排除在已推出签名鞋的目录范围之外。
+- [x] Neon 迁移应用成功；核对 31 位档案均具备签名鞋、肖像和许可来源，其中 10 位当前系列、21 位历史系列。
+- [x] 应用 Neon 迁移；只读查询确认 31 位球员档案的签名鞋、肖像与图片许可来源完整；`git diff --check` 通过。

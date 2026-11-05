@@ -160,18 +160,6 @@ function JordanFeature({ athlete }: { athlete: AthleteProfile }) {
   );
 }
 
-function SportTabs({ activeSlug }: { activeSlug: string }) {
-  return (
-    <nav className={styles.sportTabs} aria-label="明星运动分类">
-      {sports.map((sport, index) => (
-        <Link key={sport.slug} href={`/stars/${sport.slug}`} className={sport.slug === activeSlug ? styles.sportTabActive : undefined} aria-current={sport.slug === activeSlug ? "page" : undefined}>
-          <span>0{index + 1}</span>{sport.label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
 function BasketballDirectory({ data }: { data: StarSportPageData }) {
   const jordan = data.athletes.find(({ slug }) => slug === "michael-jordan");
   const roster = data.athletes.filter(({ slug }) => slug !== "michael-jordan");
@@ -185,17 +173,15 @@ function BasketballDirectory({ data }: { data: StarSportPageData }) {
     <div className={styles.page}>
       <header className={styles.pageHeader}>
         <div><p className={styles.eyebrow}>ATHLETES / BASKETBALL</p><h1>篮球<span>签名鞋运动员档案</span></h1></div>
-        <p className={styles.headerNote}>从个人鞋款系列出发，记录球员、品牌合作与球鞋文化之间的关系。所有档案均附公开来源与图片许可信息。</p>
       </header>
-      <SportTabs activeSlug={data.slug} />
       <div className={styles.directoryMeta}>
-        <span>首批研究样本 <strong>{data.athletes.length.toString().padStart(2, "0")}</strong> 位 NBA 球员</span>
+        <span>NBA 球员档案 <strong>{data.athletes.length.toString().padStart(2, "0")}</strong> 位</span>
         <span>当前仍发布系列 <strong>{activeCount.toString().padStart(2, "0")}</strong></span>
         <span>历史系列单独标注</span>
       </div>
       <section aria-label="代表球员档案"><JordanFeature athlete={jordan} /></section>
       <section className={styles.rosterSection} aria-labelledby="roster-heading">
-        <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>02 / PLAYER INDEX</p><h2 id="roster-heading">球员目录</h2></div><p>按签名鞋系列是否持续推出分组；该状态只描述鞋款系列，不代表球员与品牌之间的全部合作关系。</p></div>
+        <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>02 / PLAYER INDEX</p><h2 id="roster-heading">球员目录</h2></div></div>
         <div className={styles.rosterGroup}>
           <div className={styles.groupHeading}><h3>其他持续推出的签名系列</h3><span>{currentRoster.length.toString().padStart(2, "0")} 位 · 乔丹见页首</span></div>
           <div className={styles.rosterGrid}>
@@ -209,9 +195,6 @@ function BasketballDirectory({ data }: { data: StarSportPageData }) {
           </div>
         </div>
       </section>
-      <footer className={styles.pageFootnote}>
-        目录目前为首批 15 位研究样本，并非对所有历史 NBA 球员签名鞋系列的穷尽性清单。球员荣誉、鞋款关系与图片许可均按来源分别记录；页面不将签名鞋关系推断为销售表现。
-      </footer>
     </div>
   );
 }
@@ -221,13 +204,10 @@ function ComingSoon({ data }: { data: StarSportPageData }) {
     <div className={styles.page}>
       <header className={styles.pageHeader}>
         <div><p className={styles.eyebrow}>ATHLETES / {data.nameEn.toUpperCase()}</p><h1>{data.nameZh}<span>明星档案</span></h1></div>
-        <p className={styles.headerNote}>{data.intro ?? "该分类正在整理运动员资料、签名鞋关系和可复用的来源核验流程。"}</p>
       </header>
-      <SportTabs activeSlug={data.slug} />
       <section className={styles.comingSoon}>
         <span>RESEARCH IN PROGRESS</span>
-        <h2>这一组档案正在准备中。</h2>
-        <p>目录会在运动员资料、品牌合作证据和图片授权信息完成核验后开放。</p>
+        <h2>档案建设中</h2>
         <Link href="/stars/basketball">先查看篮球档案 <MoveRight size={15} aria-hidden="true" /></Link>
       </section>
     </div>

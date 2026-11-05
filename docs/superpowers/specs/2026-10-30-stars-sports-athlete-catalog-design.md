@@ -5,10 +5,11 @@
 - 阶段：用户已确认，进入实现
 - 日期：2026-10-30
 - 范围：将“球星”导航改为“明星”，增加运动分类，并以 Neon 作为球员档案与来源记录的唯一结构化数据源。
+- 最近更新：2026-11-05，根据用户确认扩充 NBA Nike/Jordan Brand 签名鞋球员目录并移除页面说明文案。
 
 ## 目标与成功标准
 
-为 Nike/Jordan 运动品牌研究平台建立可扩展的运动员目录。第一期上线篮球分类，共 15 位 NBA 球员档案（乔丹和另外 14 位拥有 Nike/Jordan 个人签名鞋系列的球员）；每位球员展示图片、基本信息、签名鞋系列及资料来源。目录数据从 Neon 读取，不再在页面组件中写死球员资料。
+为 Nike/Jordan 运动品牌研究平台建立可扩展的运动员目录。篮球目录按 NBA 现役及历史球员范围整理已推出个人签名鞋系列或可明确归属的签名型号的球员；本次实现包含 31 位档案，每位展示图片、基本信息、签名鞋系列及资料来源。目录数据从 Neon 读取，不在页面组件中写死球员资料。签名球员名录以 Nike 正式签名球员列表为基线，并纳入有可靠鞋款记录的 Nike/Jordan Brand 历史个人签名系列或型号；不把 PE、单一配色、未发布产品计划当成已推出的个人签名鞋。对于非专属签名系列的历史关联型号，来源证据应说明其边界，避免夸大成持续产品线。
 
 导航中的“明星”与“商品、运动、分析、配置”使用相同的一级菜单样式和交互。下拉菜单包含“篮球、足球、网球、田径”。本期仅建设篮球内容，其他三个分类显示清楚的“资料建设中”状态，不伪造空档案或虚构内容。
 
@@ -38,7 +39,9 @@
 
 - `/stars/basketball`：篮球目录页。页面顶部用乔丹作为首个代表档案，保留现有乔丹生涯介绍与 Air Jordan 代表鞋型内容；其后展示球员卡片目录，卡片包含球员照片、姓名、中英文名、位置、NBA 球队/时期、签名鞋品牌与系列、合作状态及资料来源链接。
 - 卡片按当前合作、历史合作分组；组内按配置的展示顺序排列。筛选、搜索、分页和用户编辑均不属于本期范围。
-- 首期至少 15 名 NBA 球员，覆盖乔丹、LeBron James、Kobe Bryant、Kevin Durant、Kyrie Irving、Giannis Antetokounmpo、Ja Morant、Devin Booker、Paul George、Carmelo Anthony、Chris Paul、Russell Westbrook、Luka Dončić、Jayson Tatum、Zion Williamson。该名单是首批经过来源核验的样本，不宣称穷尽 NBA 历史上所有 Nike/Jordan 签名鞋球员；新增球员应遵循相同证据标准。
+- 所有运动分类只通过顶部“明星”菜单下拉项切换；页面内容区不再重复显示篮球、足球、网球、田径切换标签。
+- 页面移除介绍性方法说明、分组免责声明和“首批样本”声明；目录仅保留标题、人数和球员事实资料。
+- 首次目录的 15 人名单继续保留，并新增 David Robinson、Charles Barkley、Penny Hardaway、Jason Kidd、Scottie Pippen、Alonzo Mourning、Kevin Garnett、Gary Payton、Tim Duncan、Vince Carter、Dwyane Wade、Dennis Rodman、Chris Webber、Tim Hardaway、Steve Nash、Paul Pierce，共 31 位。每条签名鞋关系和图片授权遵循同一来源核验标准；Steve Nash 条目标为单一历史签名型号，Rodman 条目区分正式签名鞋与球员关联款。
 - `/stars/football`、`/stars/tennis`、`/stars/athletics`：读取分类及状态，显示分类介绍和“资料建设中”提示，页面框架保持统一，待后续有经过核验的数据再开放档案卡片。
 
 ## 数据流与组件边界
@@ -98,9 +101,9 @@
 
 至少对 `(athlete_id, source_url, claim_scope)` 建唯一约束；对 `sport_id + published + sort_order`、签名鞋运动员关系、来源外键建立查询索引。删除已引用的分类/球员/鞋款时使用 restrict，避免无意丢失研究证据。
 
-## 首批球员和证据边界
+## 球员目录和证据边界
 
-首批名单沿用当前页面的乔丹介绍并添加 14 位；正式 seed 前需要逐位核验系列名称、签名鞋属性、当前/历史合作状态，以及图片授权。官方 Nike/Jordan 发布资料优先，NBA 官方历史稿用于补充已结束的合作。若某一球员缺少明确证明其为签名鞋运动员的来源，或图片权利状态不清楚，该记录应先标为 `needs_review`，不可用来满足已发布“至少 15 位已核验档案”的统计。
+目录沿用既有 15 位档案，并新增 16 位拥有 Nike/Jordan Brand 已推出个人签名鞋或可查证签名型号的 NBA 球员。Nike 历史签名鞋依据 Nike 名单及可追溯的鞋款记录；Dwyane Wade 的 Fly Wade 使用 NBA.com / Miami Heat 对 Jordan Brand 首款签名鞋的发布资料；新增历史型号需逐一记录来源和关系边界。每位球员的简介、签名鞋、照片和图片许可证分别记录来源；若证据或授权缺失，则不公开该档案。
 
 设计阶段的资料来源起点（发布前需要逐条核对并写入 `athlete_sources`）：
 
@@ -112,8 +115,11 @@
 - Nike 关于 Kobe 球鞋系列的历史说明：<https://about.nike.com/en/magazine/nike-kobe-3-history>
 - Kyrie/Nike 合作结束信息：<https://www.nba.com/news/nike-parts-ways-with-nets-guard-kyrie-irving>
 - 其余历史关系来源候选：Paul George（NBA Pacers 官方 PG1 报道）、Chris Paul（NBA Pelicans 官方 CP3 报道）、Russell Westbrook（NBA Thunder 官方 Jordan 签名鞋报道）、Dwyane Wade（NBA Heat 官方 Jordan Fly Wade 报道）。这些历史页面只作为查证入口，须核对具体球员和鞋款主张，不能以名单文章替代逐条证据。
+- Nike 历史 NBA 签名鞋球员与型号年代核对：<https://sneakernews.com/2017/01/10/complete-guide-to-nike-basketball-signature-athletes/>。该名单区分正式签名鞋与边界案例；页面只采用正式名单内 NBA 男球员，并另行核验后来推出的 Nike/Jordan Brand 系列。
+- Nike 历史签名型号补充核对：<https://kicksologists.com/2025/01/27/every-basketball-player-to-have-a-signature-shoe-deal-with-nike/>、<https://www.nicekicks.com/tim-hardaway/>、<https://sneakernews.com/2008/11/15/nike-zoom-mvp-x-steve-nash-pe/>、<https://sneakernews.com/2015/08/19/flashback-to-95-the-best-of-the-rest/>。对鞋款资料将正式签名系列、球员关联型号和签名专属配色分开描述；单一配色/球员版不扩展为系列。
+- Dwyane Wade 的 Jordan Fly Wade 发布信息及 Nike, Inc. 与 Jordan Brand 关系：<https://www.nba.com/heat/news/jordanbrdwyanewadet20110506html>；其后转向 Li-Ning 的时间依据：<https://www.nba.com/news/dwyane-wade-signs-lifetime-shoe-deal-li-ning>。
 
-图片优先使用 Wikimedia Commons 中许可明确的原图，并记录作者、来源页和许可证；对已有乔丹图也保留现页面中记录的 Steve Lipofsky / Basketballphoto.com、CC BY-SA 3.0 署名信息。Nike 新闻稿图和 NBA CDN 球员照片不默认为可自由再发布。
+图片优先使用 Wikimedia Commons 中许可明确的原图，并记录作者、来源页和许可证；新增每个档案都要单独核验对应的图片文件页和许可。Nike 新闻稿图和 NBA CDN 球员照片不默认为可自由再发布。
 
 ## 错误处理与降级
 
@@ -131,8 +137,8 @@
 - 足球、网球、田径的运动员资料采集和画像。
 - 面向用户的档案 CRUD、后台内容管理、批量导入。
 - 搜索、筛选、分页、关系图谱、销量/球鞋销售指标和数据分析结论。
-- 对“所有 NBA Nike/Jordan 签名鞋球员”作历史穷尽性承诺。
+- 将未发布的签名鞋计划、球员 PE、个人配色或普通代言鞋混作已推出的个人签名鞋系列。
 
 ## 文档与开发验收边界
 
-本文件仅定义设计。实现阶段需按获批计划处理；数据库迁移、导航、页面与 Neon 种子属于一次功能交付。页面上线前须核对种子数量不少于 15、签名鞋关系和图片授权字段完整，并确认空数据库/数据库故障时不会伪装成成功状态。具体自动化与人工验证命令由实施计划决定。
+本文件记录初版设计及 2026-11-05 的扩展要求。实现交付包括 Neon 迁移、页面、目录和来源记录；页面须读取 Neon 数据，且不得在数据查询失败时伪装为成功状态。目录不再以 15 人为样本上限或发布门槛；31 位为按本规格口径已核验的当前目录，而非对未公开、专属配色或球员版的无限扩展。

@@ -153,10 +153,6 @@ export async function getStarSportPageData(slug: string): Promise<StarSportPageD
       sources: sourcesByAthlete.get(athlete.id) ?? [],
     }));
 
-  if (sport.slug === "basketball" && sport.contentStatus === "active" && athletes.length < 15) {
-    throw new Error(`篮球明星目录仅有 ${athletes.length} 条完成来源核验的球员记录，至少需要 15 条。`);
-  }
-
   return {
     slug: sport.slug,
     nameZh: sport.nameZh,
