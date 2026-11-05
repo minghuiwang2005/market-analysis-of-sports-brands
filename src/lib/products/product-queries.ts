@@ -125,6 +125,24 @@ function customFilter(fieldId: string | undefined, value: string) {
   return exists(query);
 }
 
+const sportValueAliases: Record<string, string[]> = {
+  "篮球": ["篮球", "basketball"],
+  "足球": ["足球", "football", "soccer"],
+  "田径": ["田径", "athletics", "track and field", "track & field", "track-and-field"],
+  "网球": ["网球", "tennis"],
+};
+
+function sportFilter(fieldId: string | undefined, value: string) {
+  const aliases = sportValueAliases[value] ?? [value];
+  if (!fieldId) return sql`false`;
+  const query = getDatabase().select({ id: spuFieldValues.id }).from(spuFieldValues).where(and(
+    eq(spuFieldValues.spuId, spuProducts.id),
+    eq(spuFieldValues.fieldId, fieldId),
+    inArray(sql`lower(${spuFieldValues.textValue})`, aliases.map((alias) => alias.toLocaleLowerCase("en-US"))),
+  ));
+  return exists(query);
+}
+
 export async function listSpus(query: ProductListQuery) {
   const db = getDatabase();
   const fields = await getFields("spu");
@@ -152,8 +170,18 @@ export async function listSpus(query: ProductListQuery) {
 
   const sportField = fields.find((field) => field.key === "sport" && !field.isSystem);
   const categoryField = fields.find((field) => field.key === "category" && !field.isSystem);
-  if (query.sport) clauses.push(customFilter(sportField?.id, query.sport));
+  const athleteField = fields.find((field) => field.key === "signing_athlete" && !field.isSystem);
+  if (query.sport) clauses.push(sportFilter(sportField?.id, query.sport));
   if (query.category) clauses.push(customFilter(categoryField?.id, query.category));
+  if (query.athlete) {
+    const searchTerm = `%${query.athlete.replace(/[\\%_]/g, "\\$&")}%`;
+    if (!athleteField) clauses.push(sql`false`);
+    else clauses.push(exists(db.select({ id: spuFieldValues.id }).from(spuFieldValues).where(and(
+      eq(spuFieldValues.spuId, spuProducts.id),
+      eq(spuFieldValues.fieldId, athleteField.id),
+      ilike(spuFieldValues.textValue, searchTerm),
+    ))));
+  }
 
   const where = and(...clauses);
   const [totalResult] = await db.select({ total: count() }).from(spuProducts).where(where);

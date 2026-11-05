@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Archive,
   ArrowDownUp,
   ChevronDown,
   ChevronLeft,
@@ -10,11 +9,13 @@ import {
   CircleAlert,
   Database,
   Eye,
+  PackagePlus,
   PackageOpen,
   Plus,
   RotateCcw,
   Search,
   SquarePen,
+  Trash2,
 } from "lucide-react";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { ArchiveConfirmation } from "@/components/archive-confirmation";
@@ -37,6 +38,7 @@ type ArchiveTarget =
 
 const pageSize = 20;
 const primaryKeys = new Set(["category", "sport", "series"]);
+const sportOptions = ["篮球", "足球", "田径", "网球"] as const;
 
 function valueText(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
@@ -54,7 +56,7 @@ export function ProductsPage() {
   const [query, setQuery] = useState("");
   const [brand, setBrand] = useState("");
   const [sport, setSport] = useState("");
-  const [category, setCategory] = useState("");
+  const [athlete, setAthlete] = useState("");
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<ProductListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ export function ProductsPage() {
     if (query.trim()) params.set("q", query.trim());
     if (brand.trim()) params.set("brand", brand.trim());
     if (sport.trim()) params.set("sport", sport.trim());
-    if (category.trim()) params.set("category", category.trim());
+    if (athlete.trim()) params.set("athlete", athlete.trim());
     try {
       setResult(await apiRequest<ProductListResponse>(`/api/spus?${params.toString()}`));
     } catch (error) {
@@ -88,7 +90,7 @@ export function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, page, query, brand, sport, category]);
+  }, [status, page, query, brand, sport, athlete]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadList(); }, 250);
@@ -174,6 +176,12 @@ export function ProductsPage() {
     setForm({ level: "sku", parentId: parent.id, parentName: `${parent.spuCode} · ${parent.name}` });
     setFormError("");
     setFieldErrors({});
+  };
+
+  const openCreateSkuFromList = async (item: SpuListItemDto) => {
+    setExpandedId(item.id);
+    const parent = detail?.id === item.id ? detail : await refreshDetail(item.id);
+    if (parent) openCreateSku(parent);
   };
 
   const submitForm = async (payload: Record<string, unknown>) => {
@@ -289,8 +297,11 @@ export function ProductsPage() {
         <div className="toolbar-group">
           <label className="search-wrap"><Search size={15} aria-hidden="true" /><input className="search-input" value={query} onChange={(event) => changeFilter(setQuery, event.target.value)} placeholder="搜索商品名称、编码或字段" aria-label="搜索商品名称、编码或字段" /></label>
           <input className="select-input filter-input" value={brand} onChange={(event) => changeFilter(setBrand, event.target.value)} placeholder="品牌" aria-label="按品牌筛选" />
-          <input className="select-input filter-input" value={sport} onChange={(event) => changeFilter(setSport, event.target.value)} placeholder="运动项目" aria-label="按运动项目筛选" />
-          <input className="select-input filter-input" value={category} onChange={(event) => changeFilter(setCategory, event.target.value)} placeholder="品类" aria-label="按品类筛选" />
+          <select className="select-input filter-input" value={sport} onChange={(event) => changeFilter(setSport, event.target.value)} aria-label="按运动类型筛选">
+            <option value="">全部运动</option>
+            {sportOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+          <input className="select-input filter-input" value={athlete} onChange={(event) => changeFilter(setAthlete, event.target.value)} placeholder="签约明星" aria-label="按签约明星筛选" />
         </div>
         <div className="toolbar-group">
           <div className="view-switch" role="group" aria-label="商品记录状态">
@@ -328,7 +339,7 @@ export function ProductsPage() {
                       onEdit={() => void openEditSpu(item.id)}
                       onArchive={() => setArchiveTarget({ type: "spu", id: item.id, name: item.name, skuCount: item.skuCount })}
                       onRestore={() => void restoreSpu(item.id)}
-                      onAddSku={() => detail && detail.id === item.id ? openCreateSku(detail) : void refreshDetail(item.id).then((value) => { if (value) openCreateSku(value); })}
+                      onAddSku={() => void openCreateSkuFromList(item)}
                       onEditSku={openEditSku}
                       onArchiveSku={(sku) => setArchiveTarget({ type: "sku", id: sku.id, name: sku.name, parentId: item.id })}
                       onRestoreSku={(sku) => void restoreSku(sku)}
@@ -372,10 +383,10 @@ export function ProductsPage() {
       />}
 
       {archiveTarget && <ArchiveConfirmation
-        title={`归档${archiveTarget.type === "spu" ? " SPU" : " SKU"}「${archiveTarget.name}」`}
+        title={`删除${archiveTarget.type === "spu" ? " SPU" : " SKU"}「${archiveTarget.name}」`}
         description={archiveTarget.type === "spu"
-          ? `该 SPU 下当前有 ${archiveTarget.skuCount} 个启用 SKU。归档会同时隐藏 SPU 与这些 SKU，价格、来源和其他观察记录都会保留。`
-          : "该 SKU 会从默认列表和 SKU 摘要中移除，其字段值、来源和价格/可售观察仍会保留。"}
+          ? `该 SPU 下当前有 ${archiveTarget.skuCount} 个启用 SKU。删除会将 SPU 与这些 SKU 移入已归档列表，价格、来源和其他观察记录都会保留，之后可以恢复。`
+          : "该 SKU 会从默认列表和 SKU 摘要中移除并进入已归档列表，其字段值、来源和价格/可售观察仍会保留，之后可以恢复。"}
         pending={busy}
         onCancel={() => setArchiveTarget(null)}
         onConfirm={() => void confirmArchive()}
@@ -436,8 +447,9 @@ function ProductRow({
         <td><div className="table-actions">
           <button className="icon-button" title="查看详情" aria-label={`查看 ${item.name} 详情`} aria-expanded={expanded} onClick={onToggle}><Eye size={15} /></button>
           {status === "active" ? <>
+            <button className="icon-button" title="新建 SKU" aria-label={`为 ${item.name} 新建 SKU`} disabled={busy} onClick={onAddSku}><PackagePlus size={15} /></button>
             <button className="icon-button" title="编辑 SPU" aria-label={`编辑 ${item.name}`} disabled={busy} onClick={onEdit}><SquarePen size={15} /></button>
-            <button className="icon-button" title="归档 SPU" aria-label={`归档 ${item.name}`} disabled={busy} onClick={onArchive}><Archive size={15} /></button>
+            <button className="icon-button danger" title="删除 SPU（可在已归档列表恢复）" aria-label={`删除 ${item.name}（归档，可恢复）`} disabled={busy} onClick={onArchive}><Trash2 size={15} /></button>
           </> : <button className="icon-button" title="恢复 SPU" aria-label={`恢复 ${item.name}`} disabled={busy} onClick={onRestore}><RotateCcw size={15} /></button>}
         </div></td>
       </tr>
