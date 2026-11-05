@@ -25,6 +25,7 @@ import type {
   SpuDetailDto,
   SpuListItemDto,
   SkuDetailDto,
+  SpuSkuPageDto,
 } from "@/lib/products/types";
 import type { parseListQuery } from "@/lib/products/product-validation";
 
@@ -109,9 +110,9 @@ async function readSkuValues(ids: string[], includeArchivedFields = true) {
   return result;
 }
 
-function valueDisplayRows(fields: ModelFieldDto[], values: Record<string, unknown>): FieldDisplayValue[] {
+function valueDisplayRows(fields: ModelFieldDto[], values: Record<string, unknown>, listOnly = false): FieldDisplayValue[] {
   return fields
-    .filter((field) => !field.isSystem)
+    .filter((field) => !field.isSystem && (!listOnly || field.showInList))
     .map((field) => ({ key: field.key, label: field.label, type: field.type, value: values[field.key] ?? null }));
 }
 
@@ -212,7 +213,7 @@ export async function listSpus(query: ProductListQuery) {
   }
 
   const ids = rows.map((row) => row.id);
-  const [valueMap, latestSkus, displayFields] = await Promise.all([
+  const [valueMap, latestSkus, displayFields, skuDisplayFields] = await Promise.all([
     readSpuValues(ids, false),
     (async () => {
       const ranked = db.select({
@@ -230,6 +231,7 @@ export async function listSpus(query: ProductListQuery) {
         .from(ranked).where(lte(ranked.rowNumber, 5)).orderBy(asc(ranked.spuId), asc(ranked.rowNumber));
     })(),
     Promise.resolve(fields.filter((field) => !field.isSystem && field.showInList)),
+    getFields("sku").then((skuFields) => skuFields.filter((field) => !field.isSystem && field.showInList)),
   ]);
 
   const fieldIds = displayFields.map((field) => field.id);
@@ -255,9 +257,17 @@ export async function listSpus(query: ProductListQuery) {
     valueByProduct.set(item.spuId, values);
   }
   const latestByProduct = new Map<string, SpuListItemDto["latestSkus"]>();
+  const skuValueMap = await readSkuValues(latestSkus.map((sku) => sku.id));
   for (const sku of latestSkus) {
     const list = latestByProduct.get(sku.spuId) ?? [];
-    list.push({ id: sku.id, skuCode: sku.skuCode, name: sku.name, createdAt: sku.createdAt.toISOString() });
+    const values = skuValueMap.get(sku.id) ?? {};
+    list.push({
+      id: sku.id,
+      skuCode: sku.skuCode,
+      name: sku.name,
+      createdAt: sku.createdAt.toISOString(),
+      fields: valueDisplayRows(skuDisplayFields, values, true),
+    });
     latestByProduct.set(sku.spuId, list);
   }
 
@@ -282,28 +292,13 @@ export async function getSpuDetail(id: string, expectedStatus?: "active" | "arch
   if (!spu || (expectedStatus === "active" && spu.archivedAt) || (expectedStatus === "archived" && !spu.archivedAt)) {
     throw new AppError("SPU_NOT_FOUND", "找不到该 SPU，或它不在当前记录视图中。", 404);
   }
-  const skus = await db.select().from(skuProducts).where(eq(skuProducts.spuId, id)).orderBy(desc(skuProducts.createdAt), desc(skuProducts.id)).limit(500);
-  const [spuValues, skuValueMap, spuFields, skuFields] = await Promise.all([
+  const [spuValues, spuFields, [skuTotal], [activeSkuTotal]] = await Promise.all([
     readSpuValues([id]),
-    readSkuValues(skus.map((sku) => sku.id)),
     getFields("spu", true),
-    getFields("sku", true),
+    db.select({ total: count() }).from(skuProducts).where(eq(skuProducts.spuId, id)),
+    db.select({ total: count() }).from(skuProducts).where(and(eq(skuProducts.spuId, id), isNull(skuProducts.archivedAt))),
   ]);
   const values = spuValues.get(id) ?? {};
-  const skuDtos: SkuDetailDto[] = skus.map((sku) => ({
-    id: sku.id,
-    spuId: sku.spuId,
-    spuCode: spu.spuCode,
-    spuName: spu.name,
-    skuCode: sku.skuCode,
-    name: sku.name,
-    createdAt: sku.createdAt.toISOString(),
-    updatedAt: sku.updatedAt.toISOString(),
-    archivedAt: sku.archivedAt?.toISOString() ?? null,
-    archivedWithSpu: sku.archivedWithSpu,
-    values: skuValueMap.get(sku.id) ?? {},
-    fields: valueDisplayRows(skuFields, skuValueMap.get(sku.id) ?? {}),
-  }));
 
   return {
     id: spu.id,
@@ -313,11 +308,46 @@ export async function getSpuDetail(id: string, expectedStatus?: "active" | "arch
     updatedAt: spu.updatedAt.toISOString(),
     archivedAt: spu.archivedAt?.toISOString() ?? null,
     values,
-    skuCount: spu.archivedAt ? skuDtos.length : skuDtos.filter((sku) => !sku.archivedAt).length,
-    latestSkus: skuDtos.filter((sku) => !sku.archivedAt).slice(0, 5).map(({ id: skuId, skuCode, name: skuName, createdAt }) => ({ id: skuId, skuCode, name: skuName, createdAt })),
+    skuCount: Number(skuTotal?.total ?? 0),
+    activeSkuCount: Number(activeSkuTotal?.total ?? 0),
     fields: valueDisplayRows(spuFields, values),
-    skus: skuDtos,
   };
+}
+
+export async function listSpuSkus(id: string, status: "active" | "archived", page: number, pageSize: number): Promise<SpuSkuPageDto> {
+  const db = getDatabase();
+  const [spu] = await db.select({ id: spuProducts.id, spuCode: spuProducts.spuCode, name: spuProducts.name })
+    .from(spuProducts).where(eq(spuProducts.id, id)).limit(1);
+  if (!spu) throw new AppError("SPU_NOT_FOUND", "找不到该 SPU，或它不在当前记录视图中。", 404);
+  const statusFilter = status === "archived" ? isNotNull(skuProducts.archivedAt) : isNull(skuProducts.archivedAt);
+  const where = and(eq(skuProducts.spuId, id), statusFilter);
+  const [totalRow] = await db.select({ total: count() }).from(skuProducts).where(where);
+  const total = Number(totalRow?.total ?? 0);
+  const skus = await db.select().from(skuProducts).where(where)
+    .orderBy(desc(skuProducts.createdAt), desc(skuProducts.id))
+    .limit(pageSize).offset((page - 1) * pageSize);
+  const [valuesBySku, fields] = await Promise.all([
+    readSkuValues(skus.map(({ id: skuId }) => skuId)),
+    getFields("sku", true),
+  ]);
+  const items: SkuDetailDto[] = skus.map((sku) => {
+    const values = valuesBySku.get(sku.id) ?? {};
+    return {
+      id: sku.id,
+      spuId: sku.spuId,
+      spuCode: spu.spuCode,
+      spuName: spu.name,
+      skuCode: sku.skuCode,
+      name: sku.name,
+      createdAt: sku.createdAt.toISOString(),
+      updatedAt: sku.updatedAt.toISOString(),
+      archivedAt: sku.archivedAt?.toISOString() ?? null,
+      archivedWithSpu: sku.archivedWithSpu,
+      values,
+      fields: valueDisplayRows(fields, values),
+    };
+  });
+  return { items, total, page, pageSize, pageCount: Math.ceil(total / pageSize) };
 }
 
 export async function getSkuDetail(id: string, expectedStatus?: "active" | "archived") {

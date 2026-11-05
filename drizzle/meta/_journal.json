@@ -85,6 +85,13 @@
       "when": 1793845861004,
       "tag": "0011_product_signing_athlete",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793845861005,
+      "tag": "0012_bilingual_research_content",
+      "breakpoints": true
     }
   ]
 }

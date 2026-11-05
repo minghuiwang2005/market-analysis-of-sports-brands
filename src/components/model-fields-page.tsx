@@ -16,17 +16,9 @@ import {
 } from "lucide-react";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import type { ModelFieldDto, ProductFieldType, ProductLevel } from "@/lib/products/types";
-
-const fieldTypeLabels: Record<ProductFieldType, string> = {
-  short_text: "短文本",
-  long_text: "长文本",
-  number: "数字",
-  boolean: "是 / 否",
-  date: "日期",
-  url: "链接",
-  select: "单选",
-  multiselect: "多选",
-};
+import { useLocale } from "@/lib/i18n/locale-provider";
+import type { TranslationKey } from "@/lib/i18n/types";
+import { formatLocaleNumber, translatedApiError, translatedFieldError, translatedFieldLabel } from "@/lib/i18n/display";
 
 const blankForm = {
   key: "",
@@ -39,11 +31,22 @@ const blankForm = {
   showInList: false,
 };
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "操作失败，请重试。";
+function errorMessage(error: unknown, locale: "zh" | "en") {
+  return translatedApiError(error, locale);
 }
 
 export function ModelFieldsPage() {
+  const { locale, t } = useLocale();
+  const fieldTypeLabels: Record<ProductFieldType, TranslationKey> = {
+    short_text: "modelFields.typeShortText",
+    long_text: "modelFields.typeLongText",
+    number: "modelFields.typeNumber",
+    boolean: "modelFields.typeBoolean",
+    date: "modelFields.typeDate",
+    url: "modelFields.typeUrl",
+    select: "modelFields.typeSelect",
+    multiselect: "modelFields.typeMultiselect",
+  };
   const [level, setLevel] = useState<ProductLevel>("spu");
   const [showArchived, setShowArchived] = useState(false);
   const [fields, setFields] = useState<ModelFieldDto[]>([]);
@@ -67,22 +70,22 @@ export function ModelFieldsPage() {
       );
       setFields(result);
     } catch (error) {
-      setLoadError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", errorMessage(error)));
+      setLoadError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", errorMessage(error, locale)));
     } finally {
       setLoading(false);
     }
-  }, [level, showArchived]);
+  }, [level, showArchived, locale]);
 
   useEffect(() => {
     let cancelled = false;
     apiRequest<ModelFieldDto[]>(`/api/model-fields?level=${level}&includeArchived=${showArchived}`)
       .then((result) => { if (!cancelled) { setFields(result); setLoadError(null); } })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", errorMessage(error)));
+        if (!cancelled) setLoadError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", errorMessage(error, locale)));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [level, showArchived]);
+  }, [level, showArchived, locale]);
 
   const openCreate = () => {
     setEditing(null);
@@ -133,26 +136,28 @@ export function ModelFieldsPage() {
         body: JSON.stringify(editing ? { ...payload, level: undefined, key: undefined } : payload),
       });
       setEditorOpen(false);
-      setToast(editing ? "字段已更新" : "字段已创建");
+      setToast(t(editing ? "modelFields.saveUpdated" : "modelFields.saveCreated"));
       window.setTimeout(() => setToast(""), 2600);
       await load();
     } catch (error) {
-      setFormError(errorMessage(error));
-      if (error instanceof ApiClientError && error.fields) setFieldErrors(error.fields);
+      setFormError(errorMessage(error, locale));
+      if (error instanceof ApiClientError && error.fields) {
+        setFieldErrors(Object.fromEntries(Object.entries(error.fields).map(([key, message]) => [key, translatedFieldError(message, t)])));
+      }
     } finally {
       setSaving(false);
     }
   };
 
   const archiveField = async (field: ModelFieldDto) => {
-    if (!window.confirm(`归档“${field.label}”？既有商品值会保留，新商品表单将不再显示此字段。`)) return;
+    if (!window.confirm(t("modelFields.archiveConfirm").replace("{label}", field.label))) return;
     try {
       await apiRequest(`/api/model-fields/${field.id}`, { method: "DELETE" });
-      setToast("字段已归档，既有商品值仍保留");
+      setToast(t("modelFields.archivedToast"));
       window.setTimeout(() => setToast(""), 3000);
       await load();
     } catch (error) {
-      setToast(errorMessage(error));
+      setToast(errorMessage(error, locale));
       window.setTimeout(() => setToast(""), 3000);
     }
   };
@@ -166,60 +171,60 @@ export function ModelFieldsPage() {
     <section>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">DATA STRUCTURE</p>
-          <h1 className="page-title">商品模型</h1>
-          <p className="page-description">先定义商品结构，再按同一套字段录入 SPU 与具体 SKU 变体。</p>
+          <p className="eyebrow">{t("modelFields.eyebrow")}</p>
+          <h1 className="page-title">{t("modelFields.title")}</h1>
+          <p className="page-description">{t("modelFields.description")}</p>
         </div>
         <div className="page-actions">
           <button className="button button-primary" onClick={openCreate} disabled={Boolean(loadError)}>
-            <Plus size={15} /> 添加字段
+            <Plus size={15} /> {t("modelFields.addField")}
           </button>
         </div>
       </div>
 
-      {loadError && <DatabaseNotice error={loadError} />}
+      {loadError && <DatabaseNotice error={loadError} locale={locale} t={t} />}
 
-      <div className="model-tabs" role="tablist" aria-label="字段层级">
-        <button type="button" role="tab" aria-selected={level === "spu"} onClick={() => { setLoading(true); setLevel("spu"); }}>SPU 字段</button>
-        <button type="button" role="tab" aria-selected={level === "sku"} onClick={() => { setLoading(true); setLevel("sku"); }}>SKU 字段</button>
+      <div className="model-tabs" role="tablist" aria-label={t("modelFields.level")}>
+        <button type="button" role="tab" aria-selected={level === "spu"} onClick={() => { setLoading(true); setLevel("spu"); }}>SPU {t("modelFields.spuFields")}</button>
+        <button type="button" role="tab" aria-selected={level === "sku"} onClick={() => { setLoading(true); setLevel("sku"); }}>SKU {t("modelFields.skuFields")}</button>
       </div>
 
       <div className="toolbar">
         <div className="toolbar-group">
           <label className="search-wrap">
             <Search size={15} aria-hidden="true" />
-            <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索字段名称或编码" aria-label="搜索字段名称或编码" />
+            <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("modelFields.search")} aria-label={t("modelFields.search")} />
           </label>
         </div>
         <div className="toolbar-group">
-          <span className="count-label">{visibleFields.length} 个字段</span>
+          <span className="count-label">{formatLocaleNumber(visibleFields.length, locale)} {t("modelFields.fieldCount")}</span>
           <button className="button button-secondary" onClick={() => { setLoading(true); setShowArchived((value) => !value); }} aria-pressed={showArchived}>
-            <Archive size={14} /> {showArchived ? "隐藏已归档" : "查看已归档"}
+            <Archive size={14} /> {showArchived ? t("modelFields.hideArchived") : t("modelFields.showArchived")}
           </button>
         </div>
       </div>
 
       <div className="data-card">
-        {loading ? <div className="loading-block"><span className="spinner" />正在读取 Neon 字段</div> : loadError ? (
-          <div className="loading-block"><CircleAlert size={15} />字段暂不可用，完成数据库连接后会显示在这里。</div>
+        {loading ? <div className="loading-block"><span className="spinner" />{t("modelFields.reading")}</div> : loadError ? (
+          <div className="loading-block"><CircleAlert size={15} />{t("modelFields.unavailable")}</div>
         ) : visibleFields.length ? (
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr>
-                <th>字段名称 / 编码</th><th>类型</th><th>规则</th><th>选项</th><th>展示</th><th>来源</th><th><span className="sr-only">操作</span></th>
+                <th>{t("modelFields.colName")}</th><th>{t("modelFields.colType")}</th><th>{t("modelFields.colRules")}</th><th>{t("modelFields.colOptions")}</th><th>{t("modelFields.colVisibility")}</th><th>{t("modelFields.colSource")}</th><th><span className="sr-only">{t("modelFields.edit")}</span></th>
               </tr></thead>
               <tbody>
                 {visibleFields.map((field) => (
                   <tr key={field.id}>
-                    <td><span className="field-label">{field.label}{field.required && <span className="required-mark">*</span>}</span><div className="field-code">{field.key}</div></td>
-                    <td><span className="tag">{fieldTypeLabels[field.type]}</span></td>
-                    <td><div className="toolbar-group">{field.required && <span className="tag">必填</span>}{field.isUnique && <span className="tag">唯一</span>}{!field.required && !field.isUnique && <span className="count-label">—</span>}</div></td>
-                    <td><span className="product-subline">{field.options.length ? field.options.slice(0, 3).join("、") + (field.options.length > 3 ? ` +${field.options.length - 3}` : "") : "—"}</span></td>
-                    <td><div className="toolbar-group">{field.showInList && <span className="tag">列表</span>}{field.searchable && <span className="tag">可搜索</span>}{!field.showInList && !field.searchable && <span className="count-label">—</span>}</div></td>
-                    <td><span className={`tag ${field.isSystem ? "system" : "custom"}`}>{field.isSystem ? "系统" : "自定义"}</span>{field.archivedAt && <span className="tag archived" style={{ marginLeft: 5 }}>已归档</span>}</td>
+                    <td><span className="field-label">{translatedFieldLabel(field.key, field.label, t)}{field.required && <span className="required-mark">*</span>}</span><div className="field-code">{field.key}</div></td>
+                    <td><span className="tag">{t(fieldTypeLabels[field.type])}</span></td>
+                    <td><div className="toolbar-group">{field.required && <span className="tag">{t("modelFields.required")}</span>}{field.isUnique && <span className="tag">{t("modelFields.unique")}</span>}{!field.required && !field.isUnique && <span className="count-label">—</span>}</div></td>
+                    <td><span className="product-subline">{field.options.length ? field.options.slice(0, 3).join(locale === "en" ? ", " : "、") + (field.options.length > 3 ? ` +${formatLocaleNumber(field.options.length - 3, locale)}` : "") : "—"}</span></td>
+                    <td><div className="toolbar-group">{field.showInList && <span className="tag">{t("modelFields.inList")}</span>}{field.searchable && <span className="tag">{t("modelFields.searchable")}</span>}{!field.showInList && !field.searchable && <span className="count-label">—</span>}</div></td>
+                    <td><span className={`tag ${field.isSystem ? "system" : "custom"}`}>{field.isSystem ? t("modelFields.system") : t("modelFields.custom")}</span>{field.archivedAt && <span className="tag archived" style={{ marginLeft: 5 }}>{t("modelFields.archived")}</span>}</td>
                     <td><div className="table-actions">
-                      <button className="icon-button" title="编辑字段" aria-label={`编辑字段 ${field.label}`} disabled={Boolean(field.archivedAt)} onClick={() => openEdit(field)}><SquarePen size={15} /></button>
-                      {!field.isSystem && !field.archivedAt && <button className="icon-button danger" title="归档字段" aria-label={`归档字段 ${field.label}`} onClick={() => void archiveField(field)}><Archive size={15} /></button>}
+                      <button className="icon-button" title={t("modelFields.edit")} aria-label={`${t("modelFields.edit")} ${translatedFieldLabel(field.key, field.label, t)}`} disabled={Boolean(field.archivedAt)} onClick={() => openEdit(field)}><SquarePen size={15} /></button>
+                      {!field.isSystem && !field.archivedAt && <button className="icon-button danger" title={t("modelFields.archive")} aria-label={`${t("modelFields.archive")} ${translatedFieldLabel(field.key, field.label, t)}`} onClick={() => void archiveField(field)}><Archive size={15} /></button>}
                     </div></td>
                   </tr>
                 ))}
@@ -228,7 +233,7 @@ export function ModelFieldsPage() {
           </div>
         ) : (
           <div className="empty-state">
-            <div><span className="empty-icon"><FileSliders size={19} /></span><h3>{fields.length ? "没有匹配的字段" : "Neon 中还没有字段"}</h3><p>{fields.length ? "换一个字段名称或编码试试。" : "配置 Neon 并运行数据库迁移后，系统字段与可配置字段会显示在这里。"}</p></div>
+            <div><span className="empty-icon"><FileSliders size={19} /></span><h3>{fields.length ? t("modelFields.noMatch") : t("modelFields.noFields")}</h3><p>{fields.length ? t("modelFields.tryDifferentSearch") : t("modelFields.fieldsEmptyHint")}</p></div>
           </div>
         )}
       </div>
@@ -236,6 +241,8 @@ export function ModelFieldsPage() {
       {editorOpen && <FieldEditor
         editing={editing}
         form={form}
+        fieldTypeLabels={fieldTypeLabels}
+        t={t}
         setForm={setForm}
         errors={fieldErrors}
         error={formError}
@@ -248,13 +255,13 @@ export function ModelFieldsPage() {
   );
 }
 
-function DatabaseNotice({ error }: { error: ApiClientError }) {
+function DatabaseNotice({ error, locale, t }: { error: ApiClientError; locale: "zh" | "en"; t: (key: TranslationKey) => string }) {
   const unconfigured = error.code === "DATABASE_NOT_CONFIGURED";
   return (
     <div className={`notice ${unconfigured ? "warning" : ""}`} role="status" style={{ marginBottom: 20 }}>
       {unconfigured ? <Database size={17} /> : <CircleAlert size={17} />}
-      <div><strong>{unconfigured ? "连接 Neon 后即可管理字段" : "暂时无法读取字段模型"}</strong>
-        <p>{unconfigured ? "本地开发请将 .env.example 复制为 .env.local，填写 Neon 连接串，并运行 pnpm db:migrate。" : error.message}</p>
+      <div><strong>{unconfigured ? t("modelFields.connectTitle") : t("modelFields.unavailableTitle")}</strong>
+        <p>{unconfigured ? t("modelFields.databaseSetup") : translatedApiError(error, locale)}</p>
       </div>
     </div>
   );
@@ -264,6 +271,8 @@ type FieldFormState = typeof blankForm;
 function FieldEditor({
   editing,
   form,
+  fieldTypeLabels,
+  t,
   setForm,
   errors,
   error,
@@ -273,6 +282,8 @@ function FieldEditor({
 }: {
   editing: ModelFieldDto | null;
   form: FieldFormState;
+  fieldTypeLabels: Record<ProductFieldType, TranslationKey>;
+  t: (key: TranslationKey) => string;
   setForm: (value: FieldFormState | ((current: FieldFormState) => FieldFormState)) => void;
   errors: Record<string, string>;
   error: string;
@@ -287,26 +298,26 @@ function FieldEditor({
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <form className="modal" role="dialog" aria-modal="true" aria-labelledby="field-editor-title" onSubmit={onSubmit}>
         <div className="modal-header">
-          <div><h2 id="field-editor-title">{editing ? "编辑字段" : "新增字段"}</h2><p>字段结构保存在 Neon，归档不会删除历史商品值。</p></div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="关闭"><X size={17} /></button>
+          <div><h2 id="field-editor-title">{editing ? t("modelFields.editDialog") : t("modelFields.createDialog")}</h2><p>{t("modelFields.dialogDescription")}</p></div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label={t("modelFields.close")}><X size={17} /></button>
         </div>
         <div className="modal-body">
           {error && <div className="inline-error" role="alert">{error}</div>}
           <div className="form-grid">
-            <div className="form-field"><label htmlFor="field-label">字段名称 <span className="required-mark">*</span></label><input id="field-label" className="text-input" value={form.label} onChange={(event) => set("label", event.target.value)} required maxLength={120} placeholder="例如：鞋面科技" />{errors.label && <span className="form-error">{errors.label}</span>}</div>
-            <div className="form-field"><label htmlFor="field-key">字段编码 <span className="required-mark">*</span></label><input id="field-key" className="text-input" value={form.key} onChange={(event) => set("key", event.target.value.toLowerCase().replace(/\s+/g, "_"))} required maxLength={80} disabled={Boolean(editing)} placeholder="例如：upper_technology" />{errors.key && <span className="form-error">{errors.key}</span>}<span className="form-hint">使用小写英文、数字和下划线，创建后不可更改。</span></div>
-            <div className="form-field"><label htmlFor="field-type">数据类型</label><select id="field-type" className="select-input" value={form.type} onChange={(event) => set("type", event.target.value as ProductFieldType)} disabled={Boolean(editing?.isSystem)}>{Object.entries(fieldTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>{errors.type && <span className="form-error">{errors.type}</span>}</div>
-            {hasOptions && <div className="form-field"><label htmlFor="field-options">选项 <span className="required-mark">*</span></label><textarea id="field-options" className="text-area options-editor" value={form.optionsText} onChange={(event) => set("optionsText", event.target.value)} placeholder={"每行一个选项\n例如：\n低帮\n中帮\n高帮"} />{errors.options && <span className="form-error">{errors.options}</span>}</div>}
-            <div className="form-field wide"><label>数据规则</label><div className="toolbar-group">
-              <label className="check-row"><input type="checkbox" checked={form.required} onChange={(event) => set("required", event.target.checked)} disabled={Boolean(editing?.isSystem)} />必填</label>
-              <label className="check-row"><input type="checkbox" checked={form.isUnique} onChange={(event) => set("isUnique", event.target.checked)} disabled={Boolean(editing?.isSystem)} />值唯一</label>
-              <label className="check-row"><input type="checkbox" checked={form.searchable} onChange={(event) => set("searchable", event.target.checked)} disabled={Boolean(editing?.isSystem)} />支持搜索</label>
-              <label className="check-row"><input type="checkbox" checked={form.showInList} onChange={(event) => set("showInList", event.target.checked)} disabled={Boolean(editing?.isSystem)} />列表展示</label>
+            <div className="form-field"><label htmlFor="field-label">{t("modelFields.fieldName")} <span className="required-mark">*</span></label><input id="field-label" className="text-input" value={form.label} onChange={(event) => set("label", event.target.value)} required maxLength={120} placeholder={t("modelFields.namePlaceholder")} />{errors.label && <span className="form-error">{translatedFieldError(errors.label, t)}</span>}</div>
+            <div className="form-field"><label htmlFor="field-key">{t("modelFields.fieldKey")} <span className="required-mark">*</span></label><input id="field-key" className="text-input" value={form.key} onChange={(event) => set("key", event.target.value.toLowerCase().replace(/\s+/g, "_"))} required maxLength={80} disabled={Boolean(editing)} placeholder={t("modelFields.keyPlaceholder")} />{errors.key && <span className="form-error">{translatedFieldError(errors.key, t)}</span>}<span className="form-hint">{t("modelFields.keyFormatHint")}</span></div>
+            <div className="form-field"><label htmlFor="field-type">{t("modelFields.fieldType")}</label><select id="field-type" className="select-input" value={form.type} onChange={(event) => set("type", event.target.value as ProductFieldType)} disabled={Boolean(editing?.isSystem)}>{Object.entries(fieldTypeLabels).map(([key, translation]) => <option key={key} value={key}>{t(translation)}</option>)}</select>{errors.type && <span className="form-error">{translatedFieldError(errors.type, t)}</span>}</div>
+            {hasOptions && <div className="form-field"><label htmlFor="field-options">{t("modelFields.optionsRequired")} <span className="required-mark">*</span></label><textarea id="field-options" className="text-area options-editor" value={form.optionsText} onChange={(event) => set("optionsText", event.target.value)} placeholder={t("modelFields.optionPlaceholder")} />{errors.options && <span className="form-error">{translatedFieldError(errors.options, t)}</span>}</div>}
+            <div className="form-field wide"><label>{t("modelFields.rules")}</label><div className="toolbar-group">
+              <label className="check-row"><input type="checkbox" checked={form.required} onChange={(event) => set("required", event.target.checked)} disabled={Boolean(editing?.isSystem)} />{t("modelFields.required")}</label>
+              <label className="check-row"><input type="checkbox" checked={form.isUnique} onChange={(event) => set("isUnique", event.target.checked)} disabled={Boolean(editing?.isSystem)} />{t("modelFields.valueUnique")}</label>
+              <label className="check-row"><input type="checkbox" checked={form.searchable} onChange={(event) => set("searchable", event.target.checked)} disabled={Boolean(editing?.isSystem)} />{t("modelFields.searchableRule")}</label>
+              <label className="check-row"><input type="checkbox" checked={form.showInList} onChange={(event) => set("showInList", event.target.checked)} disabled={Boolean(editing?.isSystem)} />{t("modelFields.listDisplay")}</label>
             </div></div>
           </div>
-          {editing?.isSystem && <div className="form-help-line"><ShieldCheck size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />系统字段编码和类型受保护，可调整展示名称。</div>}
+          {editing?.isSystem && <div className="form-help-line"><ShieldCheck size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />{t("modelFields.systemFieldHint")}</div>}
         </div>
-        <div className="modal-footer"><button type="button" className="button button-secondary" onClick={onClose}>取消</button><button type="submit" className="button button-primary" disabled={saving}>{saving && <LoaderCircle size={14} className="animate-spin" />}{saving ? "保存中" : "保存字段"}</button></div>
+        <div className="modal-footer"><button type="button" className="button button-secondary" onClick={onClose}>{t("modelFields.cancel")}</button><button type="submit" className="button button-primary" disabled={saving}>{saving && <LoaderCircle size={14} className="animate-spin" />}{saving ? t("modelFields.saving") : t("modelFields.saveField")}</button></div>
       </form>
     </div>
   );

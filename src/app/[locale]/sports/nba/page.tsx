@@ -10,28 +10,25 @@ import {
 } from "@/lib/sports-timeline/queries";
 import { DatabaseConfigurationError } from "@/lib/db";
 import styles from "./page.module.css";
+import { getRequestLocale } from "@/lib/i18n/server";
+import { getLocaleMessages } from "@/lib/i18n/types";
+import type { Locale } from "@/lib/i18n/locale";
 
-export const metadata: Metadata = {
-  title: "NBA 历史时间轴",
-  description: "从现在回看 NBA 自 1946 年以来的重要事件与 Nike、Jordan 球星合作。",
-};
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const locale = getRequestLocale((await params).locale);
+  const copy = getLocaleMessages(locale).nba;
+  return { title: copy.metadataTitle, description: copy.metadataDescription };
+}
 
-const categories = [
-  { id: "league", label: "联盟发展" },
-  { id: "rules", label: "规则与赛制" },
-  { id: "people", label: "人物与突破" },
-  { id: "global", label: "全球传播" },
-  { id: "culture", label: "篮球生态" },
-] as const;
-
-function formatEventDate(event: TimelineEvent) {
+function formatEventDate(event: TimelineEvent, locale: Locale) {
+  const lang = locale === "en" ? "en-US" : "zh-CN";
   if (event.datePrecision === "day" && event.occurredMonth && event.occurredDay) {
-    return `${event.occurredYear} 年 ${event.occurredMonth} 月 ${event.occurredDay} 日`;
+    return new Intl.DateTimeFormat(lang, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(event.occurredYear, event.occurredMonth - 1, event.occurredDay)));
   }
   if (event.datePrecision === "month" && event.occurredMonth) {
-    return `${event.occurredYear} 年 ${event.occurredMonth} 月`;
+    return new Intl.DateTimeFormat(lang, { year: "numeric", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(event.occurredYear, event.occurredMonth - 1, 1)));
   }
-  return `${event.occurredYear} 年`;
+  return new Intl.NumberFormat(lang).format(event.occurredYear);
 }
 
 function formatDateTime(event: TimelineEvent) {
@@ -44,9 +41,9 @@ function formatDateTime(event: TimelineEvent) {
   return year;
 }
 
-function EventCard({ event }: { event: TimelineEvent }) {
+function EventCard({ event, locale, copy }: { event: TimelineEvent; locale: Locale; copy: ReturnType<typeof getLocaleMessages>["nba"] }) {
   const isSigning = event.eventType === "athlete_signing";
-  const categoryLabel = categories.find((category) => category.id === event.category)?.label;
+  const categoryLabel = copy.categories[event.category as keyof typeof copy.categories];
 
   return (
     <article
@@ -56,20 +53,20 @@ function EventCard({ event }: { event: TimelineEvent }) {
     >
       <div className={styles.eventMeta}>
         <span className={styles.eventCategory}>
-          {isSigning ? "球星签约" : categoryLabel ?? "NBA 大事件"}
+          {isSigning ? copy.eventSigning : categoryLabel ?? copy.eventDefault}
         </span>
-        <time dateTime={formatDateTime(event)}>{formatEventDate(event)}</time>
+        <time dateTime={formatDateTime(event)}>{formatEventDate(event, locale)}</time>
       </div>
       <h3>{event.title}</h3>
       <p>{event.description}</p>
-      <ul className={styles.sources} aria-label="资料来源">
+      <ul className={styles.sources} aria-label={copy.sources}>
         {event.sources.map((source) => (
           <li key={source.url}>
             <a
               href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`${source.publisher}：${source.sourceTitle}（在新窗口打开）`}
+              aria-label={`${source.publisher}: ${source.sourceTitle} (${copy.openSource})`}
             >
               {source.publisher} <ArrowUpRight size={13} aria-hidden="true" />
             </a>
@@ -80,7 +77,7 @@ function EventCard({ event }: { event: TimelineEvent }) {
   );
 }
 
-function ClassicGameCard({ game }: { game: NbaClassicGame }) {
+function ClassicGameCard({ game, copy }: { game: NbaClassicGame; copy: ReturnType<typeof getLocaleMessages>["nba"] }) {
   return (
     <article className={styles.classicGameCard}>
       <div className={styles.classicGameMeta}>
@@ -91,14 +88,14 @@ function ClassicGameCard({ game }: { game: NbaClassicGame }) {
       <p className={styles.classicGameMatchup}>{game.matchup}</p>
       <p className={styles.classicGameResult}>{game.result}</p>
       <p className={styles.classicGameDescription}>{game.description}</p>
-      <ul className={styles.classicGameSources} aria-label={`${game.title} 的资料来源`}>
+      <ul className={styles.classicGameSources} aria-label={`${game.title} · ${copy.sources}`}>
         {game.sources.map((source) => (
           <li key={source.url}>
             <a
               href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`${source.publisher}：${source.sourceTitle}（在新窗口打开）`}
+              aria-label={`${source.publisher}: ${source.sourceTitle} (${copy.openSource})`}
             >
               {source.publisher} <ArrowUpRight size={13} aria-hidden="true" />
             </a>
@@ -109,57 +106,59 @@ function ClassicGameCard({ game }: { game: NbaClassicGame }) {
   );
 }
 
-async function ClassicGamesContent() {
+async function ClassicGamesContent({ locale }: { locale: Locale }) {
   await io();
+  const copy = getLocaleMessages(locale).nba;
 
   let games: Awaited<ReturnType<typeof getNbaClassicGames>>;
   try {
-    games = await getNbaClassicGames();
+    games = await getNbaClassicGames(locale);
   } catch (error) {
     const message = error instanceof DatabaseConfigurationError
-      ? "Neon 数据库尚未配置。请检查数据库连接后重试。"
-      : "暂时无法读取 Neon 经典比赛资料，请确认数据库连接和迁移状态后重试。";
+      ? copy.databaseMissing
+      : copy.classicUnavailable;
 
     return <p className={styles.classicGamesStatus} role="alert">{message}</p>;
   }
 
   if (games.length === 0) {
-    return <p className={styles.classicGamesStatus}>暂时没有可展示的 NBA 经典比赛资料。</p>;
+    return <p className={styles.classicGamesStatus}>{copy.classicNoData}</p>;
   }
 
   return (
     <div className={styles.classicGamesGrid}>
-      {games.map((game) => <ClassicGameCard game={game} key={game.id} />)}
+      {games.map((game) => <ClassicGameCard game={game} copy={copy} key={game.id} />)}
     </div>
   );
 }
 
-async function TimelineContent() {
+async function TimelineContent({ locale }: { locale: Locale }) {
   await io();
+  const copy = getLocaleMessages(locale).nba;
 
   let groups: Awaited<ReturnType<typeof getSportsTimelineGroups>>;
   try {
-    groups = await getSportsTimelineGroups("nba");
+    groups = await getSportsTimelineGroups("nba", locale);
   } catch (error) {
     const message = error instanceof DatabaseConfigurationError
-      ? "Neon 数据库尚未配置。请检查数据库连接后重试。"
-      : "暂时无法读取 Neon 时间轴数据，请确认数据库连接和迁移状态后重试。";
+      ? copy.databaseMissing
+      : copy.timelineUnavailable;
 
     return <p className={styles.timelineStatus} role="alert">{message}</p>;
   }
 
   if (groups.length === 0) {
-    return <p className={styles.timelineStatus}>暂时没有可展示的 NBA 时间轴资料。</p>;
+    return <p className={styles.timelineStatus}>{copy.timelineNoData}</p>;
   }
 
   return (
     <>
       <div className={styles.trackLabels} aria-hidden="true">
-        <span>NBA 大事件</span>
-        <span>年份</span>
-        <span>球星签约 / 合作公告</span>
+        <span>{copy.nbaEvents}</span>
+        <span>{copy.yearLabel}</span>
+        <span>{copy.signingEvents}</span>
       </div>
-      <ol className={styles.timeline} aria-label="按年份倒序排列的 NBA 历史和球星签约事件">
+      <ol className={styles.timeline} aria-label={copy.timelineAria}>
         {groups.map((group) => (
           <li className={styles.yearGroup} key={group.year}>
             <div className={styles.yearMarker}>
@@ -168,40 +167,40 @@ async function TimelineContent() {
                 {group.year}
               </time>
             </div>
-            <div className={styles.nbaLane} role="group" aria-label={`${group.year} 年 NBA 大事件`}>
-              {group.nbaEvents.map((event) => <EventCard event={event} key={event.id} />)}
+            <div className={styles.nbaLane} role="group" aria-label={`${group.year} · ${copy.nbaEvents}`}>
+              {group.nbaEvents.map((event) => <EventCard event={event} locale={locale} copy={copy} key={event.id} />)}
             </div>
-            <div className={styles.signingLane} role="group" aria-label={`${group.year} 年球星签约事件`}>
-              {group.signingEvents.map((event) => <EventCard event={event} key={event.id} />)}
+            <div className={styles.signingLane} role="group" aria-label={`${group.year} · ${copy.eventSigning}`}>
+              {group.signingEvents.map((event) => <EventCard event={event} locale={locale} copy={copy} key={event.id} />)}
             </div>
           </li>
         ))}
       </ol>
       <p className={styles.sourceNote}>
-        联盟事件与球星签约资料均来自卡片所列来源。日期仅显示来源能够支持的年份、年月或完整日期；合作公告日不代表未公开的合同签署日。
+        {copy.sourceNote}
       </p>
     </>
   );
 }
 
-function TimelineLoading() {
-  return <p className={styles.timelineStatus} role="status">正在读取 Neon 时间轴资料…</p>;
+function TimelineLoading({ locale }: { locale: Locale }) {
+  return <p className={styles.timelineStatus} role="status">{getLocaleMessages(locale).nba.loading}</p>;
 }
 
-export default function NbaPage() {
+export default async function NbaPage({ params }: { params: Promise<{ locale: string }> }) {
+  const locale = getRequestLocale((await params).locale);
+  const copy = getLocaleMessages(locale).nba;
+  const categories = Object.entries(copy.categories).filter(([key]) => key !== "signing").map(([id, label]) => ({ id, label }));
   return (
     <div className={styles.page}>
       <section className={styles.hero} aria-labelledby="nba-title">
         <div className={styles.heroContent}>
-          <p className={styles.heroKicker}>SPORTS / NBA HISTORY</p>
+          <p className={styles.heroKicker}>{copy.heroKicker}</p>
           <h1 className={styles.heroTitle} id="nba-title">NBA</h1>
-          <p className={styles.heroSubtitle}>一部不断延伸的篮球史</p>
-          <p className={styles.heroDescription}>
-            NBA（National Basketball Association，美国职业篮球联赛）是北美职业篮球联盟。
-            它的前身 BAA 于 1946 年成立，并在 1949 年与 NBL 合并，形成现代 NBA。
-          </p>
+          <p className={styles.heroSubtitle}>{copy.heroSubtitle}</p>
+          <p className={styles.heroDescription}>{copy.heroDescription}</p>
           <a className={styles.heroSource} href="https://www.nba.com/news/about" target="_blank" rel="noopener noreferrer">
-            了解 NBA 官方介绍 <ArrowUpRight size={16} aria-hidden="true" />
+            {copy.officialIntro} <ArrowUpRight size={16} aria-hidden="true" />
           </a>
         </div>
         <div className={styles.heroMark} aria-hidden="true">
@@ -211,34 +210,34 @@ export default function NbaPage() {
         </div>
       </section>
 
-      <section className={styles.intro} aria-label="NBA 历史概览">
+      <section className={styles.intro} aria-label={copy.overviewAria}>
         <div className={styles.introLead}>
-          <span className={styles.sectionNumber}>01 / OVERVIEW</span>
-          <h2>从一场比赛，<br />到全球篮球文化</h2>
+          <span className={styles.sectionNumber}>{copy.overviewLabel}</span>
+          <h2>{copy.overviewTitle.split("\n").map((line) => <span key={line}>{line}<br /></span>)}</h2>
         </div>
       </section>
 
       <section className={styles.classicGames} aria-labelledby="nba-classic-games-title">
         <div className={styles.classicGamesHeader}>
           <div>
-            <span className={styles.sectionNumber}>FEATURED / CLASSIC GAMES</span>
-            <h2 id="nba-classic-games-title">三场经典比赛</h2>
+            <span className={styles.sectionNumber}>{copy.classicLabel}</span>
+            <h2 id="nba-classic-games-title">{copy.classicTitle}</h2>
           </div>
           <span className={styles.classicGamesCount}>1970 — 2013</span>
         </div>
-        <Suspense fallback={<p className={styles.classicGamesStatus} role="status">正在读取 Neon 经典比赛资料…</p>}>
-          <ClassicGamesContent />
+        <Suspense fallback={<p className={styles.classicGamesStatus} role="status">{copy.classicLoading}</p>}>
+          <ClassicGamesContent locale={locale} />
         </Suspense>
       </section>
 
       <section className={styles.history} aria-labelledby="nba-history-title">
         <div className={styles.historyHeader}>
           <div>
-            <span className={styles.sectionNumber}>02 / TIMELINE</span>
-            <h2 id="nba-history-title">从现在回望 1946</h2>
-            <p>联盟历史 × 球星合作 · 由近及远</p>
+            <span className={styles.sectionNumber}>{copy.timelineLabel}</span>
+            <h2 id="nba-history-title">{copy.timelineTitle}</h2>
+            <p>{copy.timelineSubtitle}</p>
           </div>
-          <div className={styles.legend} aria-label="NBA 事件颜色图例">
+          <div className={styles.legend} aria-label={copy.eventLegend}>
             {categories.map((category) => (
               <span className={styles.legendItem} data-category={category.id} key={category.id}>
                 <span className={styles.legendDot} aria-hidden="true" />
@@ -247,13 +246,13 @@ export default function NbaPage() {
             ))}
             <span className={styles.legendItem} data-event-type="athlete_signing">
               <span className={styles.legendDot} aria-hidden="true" />
-              球星签约
+              {copy.eventSigning}
             </span>
           </div>
         </div>
 
-        <Suspense fallback={<TimelineLoading />}>
-          <TimelineContent />
+        <Suspense fallback={<TimelineLoading locale={locale} />}>
+          <TimelineContent locale={locale} />
         </Suspense>
       </section>
     </div>

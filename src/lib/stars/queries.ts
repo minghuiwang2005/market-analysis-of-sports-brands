@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDatabase } from "@/lib/db";
+import type { Locale } from "@/lib/i18n/locale";
 import {
   athleteShoeLines,
   athleteSources,
@@ -51,7 +52,7 @@ export type StarSportPageData = {
   athletes: AthleteProfile[];
 };
 
-export async function getStarSportPageData(slug: string): Promise<StarSportPageData | null> {
+export async function getStarSportPageData(slug: string, locale: Locale = "zh"): Promise<StarSportPageData | null> {
   const db = getDatabase();
   const [sport] = await db.select().from(starSports).where(eq(starSports.slug, slug)).limit(1);
   if (!sport) return null;
@@ -70,7 +71,7 @@ export async function getStarSportPageData(slug: string): Promise<StarSportPageD
       slug: sport.slug,
       nameZh: sport.nameZh,
       nameEn: sport.nameEn,
-      intro: sport.intro,
+      intro: locale === "en" ? sport.introEn ?? sport.intro : sport.intro,
       contentStatus: sport.contentStatus as StarSportPageData["contentStatus"],
       athletes: [],
     };
@@ -134,21 +135,21 @@ export async function getStarSportPageData(slug: string): Promise<StarSportPageD
       slug: athlete.slug,
       nameZh: athlete.nameZh,
       nameEn: athlete.nameEn,
-      league: athlete.league,
-      position: athlete.position,
-      teamsSummary: athlete.teamsSummary,
-      nationality: athlete.nationality,
+      league: locale === "en" ? athlete.leagueEn ?? athlete.league : athlete.league,
+      position: locale === "en" ? athlete.positionEn ?? athlete.position : athlete.position,
+      teamsSummary: locale === "en" ? athlete.teamsSummaryEn ?? athlete.teamsSummary : athlete.teamsSummary,
+      nationality: locale === "en" ? athlete.nationalityEn ?? athlete.nationality : athlete.nationality,
       birthDate: athlete.birthDate,
       heightCm: athlete.heightCm,
       jerseyNumber: athlete.jerseyNumber,
-      bio: athlete.bio,
+      bio: locale === "en" ? athlete.bioEn ?? athlete.bio : athlete.bio,
       portraitUrl: athlete.portraitUrl!,
-      portraitAlt: athlete.portraitAlt!,
+      portraitAlt: locale === "en" ? athlete.portraitAltEn ?? athlete.portraitAlt! : athlete.portraitAlt!,
       portraitSourceUrl: athlete.portraitSourceUrl!,
       portraitCredit: athlete.portraitCredit!,
       portraitLicense: athlete.portraitLicense!,
       portraitLicenseUrl: athlete.portraitLicenseUrl!,
-      careerHighlights: athlete.careerHighlights,
+      careerHighlights: locale === "en" ? athlete.careerHighlightsEn ?? athlete.careerHighlights : athlete.careerHighlights,
       shoeLines: linesByAthlete.get(athlete.id) ?? [],
       sources: sourcesByAthlete.get(athlete.id) ?? [],
     }));
@@ -157,7 +158,7 @@ export async function getStarSportPageData(slug: string): Promise<StarSportPageD
     slug: sport.slug,
     nameZh: sport.nameZh,
     nameEn: sport.nameEn,
-    intro: sport.intro,
+    intro: locale === "en" ? sport.introEn ?? sport.intro : sport.intro,
     contentStatus: sport.contentStatus as StarSportPageData["contentStatus"],
     athletes,
   };

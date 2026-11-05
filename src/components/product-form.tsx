@@ -3,6 +3,8 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { LoaderCircle, X } from "lucide-react";
 import type { ModelFieldDto, ProductLevel, SkuDetailDto, SpuDetailDto } from "@/lib/products/types";
+import { useLocale } from "@/lib/i18n/locale-provider";
+import { translatedFieldError, translatedFieldLabel } from "@/lib/i18n/display";
 
 type ProductRecordFormProps = {
   level: ProductLevel;
@@ -28,6 +30,7 @@ export function ProductRecordForm({
   onSubmit,
 }: ProductRecordFormProps) {
   const isSpu = level === "spu";
+  const { t } = useLocale();
   const spuRecord = isSpu ? record as SpuDetailDto | undefined : undefined;
   const skuRecord = !isSpu ? record as SkuDetailDto | undefined : undefined;
   const [code, setCode] = useState(spuRecord?.spuCode ?? skuRecord?.skuCode ?? "");
@@ -53,40 +56,41 @@ export function ProductRecordForm({
       <form className="modal" role="dialog" aria-modal="true" aria-labelledby="product-form-title" onSubmit={submit}>
         <div className="modal-header">
           <div>
-            <h2 id="product-form-title">{record ? `编辑 ${isSpu ? "SPU" : "SKU"}` : `新增 ${isSpu ? "SPU" : "SKU"}`}</h2>
-            <p>{isSpu ? "保存后会在商品列表中以 SPU 主体展示。" : `所属 SPU：${parentName ?? "未选择"}`}</p>
+            <h2 id="product-form-title">{record ? t(isSpu ? "productForm.editSpu" : "productForm.editSku") : t(isSpu ? "productForm.createSpu" : "productForm.createSku")}</h2>
+            <p>{isSpu ? t("productForm.spuSavedHint") : t("productForm.parentSpu").replace("{name}", parentName ?? t("productForm.noParent"))}</p>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="关闭"><X size={17} /></button>
+          <button className="icon-button" type="button" onClick={onClose} aria-label={t("productForm.close")}><X size={17} /></button>
         </div>
         <div className="modal-body">
           {error && <div className="inline-error" role="alert">{error}</div>}
           <div className="form-grid">
-            <FormInput label={`${isSpu ? "SPU" : "SKU"} 编码`} required error={fieldErrors[isSpu ? "spuCode" : "skuCode"]}>
-              <input className="text-input" value={code} onChange={(event) => setCode(event.target.value)} required maxLength={120} placeholder={isSpu ? "例如：NK-RUN-001" : "例如：NK-RUN-001-BLK-42"} />
+            <FormInput label={t(isSpu ? "productForm.codeSpu" : "productForm.codeSku")} required error={translatedFieldError(fieldErrors[isSpu ? "spuCode" : "skuCode"] ?? "", t)}>
+              <input className="text-input" value={code} onChange={(event) => setCode(event.target.value)} required maxLength={120} placeholder={t(isSpu ? "productForm.exampleSpuCode" : "productForm.exampleSkuCode")} />
             </FormInput>
-            <FormInput label={isSpu ? "商品名称" : "SKU 名称"} required error={fieldErrors.name}>
-              <input className="text-input" value={name} onChange={(event) => setName(event.target.value)} required maxLength={240} placeholder={isSpu ? "例如：Pegasus 运动鞋" : "例如：黑色 / US 9"} />
+            <FormInput label={t(isSpu ? "productForm.nameProduct" : "productForm.nameSku")} required error={translatedFieldError(fieldErrors.name ?? "", t)}>
+              <input className="text-input" value={name} onChange={(event) => setName(event.target.value)} required maxLength={240} placeholder={t(isSpu ? "productForm.exampleProductName" : "productForm.exampleSkuName")} />
             </FormInput>
-            {isSpu && <FormInput label="品牌" required error={fieldErrors.brand}>
-              <input className="text-input" value={brand} onChange={(event) => setBrand(event.target.value)} required maxLength={120} placeholder="例如：Nike" />
+            {isSpu && <FormInput label={t("productForm.brand")} required error={translatedFieldError(fieldErrors.brand ?? "", t)}>
+              <input className="text-input" value={brand} onChange={(event) => setBrand(event.target.value)} required maxLength={120} placeholder={t("productForm.exampleBrand")} />
             </FormInput>}
             {editableFields.map((field) => (
-              <FormInput key={field.id} label={field.label} required={field.required} error={fieldErrors[field.key]} wide={field.type === "long_text" || field.type === "multiselect"}>
+              <FormInput key={field.id} label={translatedFieldLabel(field.key, field.label, t)} required={field.required} error={translatedFieldError(fieldErrors[field.key] ?? "", t)} wide={field.type === "long_text" || field.type === "multiselect"}>
                 <FieldInput
                   field={field}
                   value={values[field.key]}
                   required={field.required}
+                  t={t}
                   onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
                 />
               </FormInput>
             ))}
           </div>
-          <p className="form-help-line">编码与字段值会在 Neon 中校验唯一性。价格与可售状态作为带来源和时间的观察记录保存。</p>
+          <p className="form-help-line">{t("productForm.uniqueValuesHelp")}</p>
         </div>
         <div className="modal-footer">
-          <button type="button" className="button button-secondary" onClick={onClose}>取消</button>
+          <button type="button" className="button button-secondary" onClick={onClose}>{t("productForm.cancel")}</button>
           <button type="submit" className="button button-primary" disabled={pending}>
-            {pending && <LoaderCircle size={14} className="animate-spin" />}{pending ? "保存中" : record ? "保存修改" : `创建 ${isSpu ? "SPU" : "SKU"}`}
+            {pending && <LoaderCircle size={14} className="animate-spin" />}{pending ? t("productForm.saving") : record ? t("productForm.saveChanges") : t("productForm.create").replace("{level}", isSpu ? "SPU" : "SKU")}
           </button>
         </div>
       </form>
@@ -120,23 +124,25 @@ function FieldInput({
   value,
   required = false,
   onChange,
+  t,
 }: {
   field: ModelFieldDto;
   value: unknown;
   required?: boolean;
   onChange: (value: unknown) => void;
+  t: (key: import("@/lib/i18n/types").TranslationKey) => string;
 }) {
   if (field.type === "long_text") {
     return <textarea className="text-area" value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} maxLength={10000} required={required} />;
   }
   if (field.type === "boolean") {
     return <select className="select-input" value={typeof value === "boolean" ? String(value) : ""} onChange={(event) => onChange(event.target.value === "" ? null : event.target.value === "true")} required={required}>
-      <option value="">请选择</option><option value="true">是</option><option value="false">否</option>
+      <option value="">{t("productForm.choose")}</option><option value="true">{t("productForm.yes")}</option><option value="false">{t("productForm.no")}</option>
     </select>;
   }
   if (field.type === "select") {
     return <select className="select-input" value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value || null)} required={required}>
-      <option value="">请选择</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}
+      <option value="">{t("productForm.choose")}</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}
     </select>;
   }
   if (field.type === "multiselect") {

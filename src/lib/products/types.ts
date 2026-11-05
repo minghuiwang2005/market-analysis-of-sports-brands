@@ -37,6 +37,7 @@ export interface SkuSummaryDto {
   skuCode: string;
   name: string;
   createdAt: string;
+  fields: FieldDisplayValue[];
 }
 
 export interface SpuListItemDto {
@@ -62,9 +63,25 @@ export interface SkuDetailDto extends SkuSummaryDto {
   fields: FieldDisplayValue[];
 }
 
-export interface SpuDetailDto extends SpuListItemDto {
+export interface SpuDetailDto {
+  id: string;
+  spuCode: string;
+  name: string;
+  brand: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  values: Record<string, unknown>;
+  skuCount: number;
+  activeSkuCount: number;
   fields: FieldDisplayValue[];
-  skus: SkuDetailDto[];
+}
+
+export interface SpuSkuPageDto {
+  items: SkuDetailDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
 }
 
 export interface SpuInput {

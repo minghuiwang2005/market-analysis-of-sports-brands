@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDatabase } from "@/lib/db";
+import type { Locale } from "@/lib/i18n/locale";
 import {
   nbaClassicGameSources,
   nbaClassicGames,
@@ -23,17 +24,22 @@ export type NbaClassicGame = {
   }[];
 };
 
-export async function getNbaClassicGames(): Promise<NbaClassicGame[]> {
+export async function getNbaClassicGames(locale: Locale = "zh"): Promise<NbaClassicGame[]> {
   const db = getDatabase();
   const rows = await db
     .select({
       id: nbaClassicGames.id,
       occurredYear: nbaClassicGames.occurredYear,
       gameLabel: nbaClassicGames.gameLabel,
+      gameLabelEn: nbaClassicGames.gameLabelEn,
       title: nbaClassicGames.title,
+      titleEn: nbaClassicGames.titleEn,
       matchup: nbaClassicGames.matchup,
+      matchupEn: nbaClassicGames.matchupEn,
       result: nbaClassicGames.result,
+      resultEn: nbaClassicGames.resultEn,
       description: nbaClassicGames.description,
+      descriptionEn: nbaClassicGames.descriptionEn,
       sourceUrl: nbaClassicGameSources.url,
       sourcePublisher: nbaClassicGameSources.publisher,
       sourceTitle: nbaClassicGameSources.sourceTitle,
@@ -61,11 +67,11 @@ export async function getNbaClassicGames(): Promise<NbaClassicGame[]> {
       game = {
         id: row.id,
         occurredYear: row.occurredYear,
-        gameLabel: row.gameLabel,
-        title: row.title,
-        matchup: row.matchup,
-        result: row.result,
-        description: row.description,
+        gameLabel: locale === "en" ? row.gameLabelEn ?? row.gameLabel : row.gameLabel,
+        title: locale === "en" ? row.titleEn ?? row.title : row.title,
+        matchup: locale === "en" ? row.matchupEn ?? row.matchup : row.matchup,
+        result: locale === "en" ? row.resultEn ?? row.result : row.result,
+        description: locale === "en" ? row.descriptionEn ?? row.description : row.description,
         sources: [],
       };
       gamesById.set(row.id, game);
@@ -92,6 +98,7 @@ export type TimelineEvent = {
   athleteNameZh: string | null;
   athleteNameEn: string | null;
   organization: string | null;
+  organizationEn: string | null;
   title: string;
   description: string;
   sources: {
@@ -108,7 +115,7 @@ export type TimelineYearGroup = {
   signingEvents: TimelineEvent[];
 };
 
-export async function getSportsTimelineGroups(sport: "nba"): Promise<TimelineYearGroup[]> {
+export async function getSportsTimelineGroups(sport: "nba", locale: Locale = "zh"): Promise<TimelineYearGroup[]> {
   const db = getDatabase();
   const rows = await db
     .select({
@@ -122,8 +129,11 @@ export async function getSportsTimelineGroups(sport: "nba"): Promise<TimelineYea
       athleteNameZh: sportsTimelineEvents.athleteNameZh,
       athleteNameEn: sportsTimelineEvents.athleteNameEn,
       organization: sportsTimelineEvents.organization,
+      organizationEn: sportsTimelineEvents.organizationEn,
       title: sportsTimelineEvents.title,
+      titleEn: sportsTimelineEvents.titleEn,
       description: sportsTimelineEvents.description,
+      descriptionEn: sportsTimelineEvents.descriptionEn,
       sourceUrl: sportsTimelineEventSources.url,
       sourcePublisher: sportsTimelineEventSources.publisher,
       sourceTitle: sportsTimelineEventSources.sourceTitle,
@@ -162,9 +172,10 @@ export async function getSportsTimelineGroups(sport: "nba"): Promise<TimelineYea
         datePrecision: row.datePrecision as TimelineEvent["datePrecision"],
         athleteNameZh: row.athleteNameZh,
         athleteNameEn: row.athleteNameEn,
-        organization: row.organization,
-        title: row.title,
-        description: row.description,
+        organization: locale === "en" ? row.organizationEn ?? row.organization : row.organization,
+        organizationEn: row.organizationEn,
+        title: locale === "en" ? row.titleEn ?? row.title : row.title,
+        description: locale === "en" ? row.descriptionEn ?? row.description : row.description,
         sources: [],
       };
       eventsById.set(row.id, event);

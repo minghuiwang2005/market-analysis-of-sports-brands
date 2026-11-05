@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowDownUp,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
   Database,
   Eye,
-  PackagePlus,
   PackageOpen,
+  PackagePlus,
   Plus,
   RotateCcw,
   Search,
@@ -19,39 +17,28 @@ import {
 } from "lucide-react";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { ArchiveConfirmation } from "@/components/archive-confirmation";
-import { ProductDetail } from "@/components/product-detail";
 import { ProductRecordForm } from "@/components/product-form";
-import type {
-  ModelFieldDto,
-  ProductLevel,
-  SpuDetailDto,
-  SpuListItemDto,
-  SkuDetailDto,
-} from "@/lib/products/types";
+import { LocaleLink } from "@/lib/i18n/locale-link";
+import { useLocale } from "@/lib/i18n/locale-provider";
+import { formatLocaleDate, formatLocaleNumber, formatProductValue, translatedApiError, translatedFieldError, translatedFieldLabel } from "@/lib/i18n/display";
+import type { ModelFieldDto, ProductLevel, SpuDetailDto, SpuListItemDto, SkuDetailDto } from "@/lib/products/types";
+import type { TranslationKey } from "@/lib/i18n/types";
 
 type RecordStatus = "active" | "archived";
 type ProductListResponse = { items: SpuListItemDto[]; total: number; page: number; pageSize: number; pageCount: number };
 type ProductFormState = { level: ProductLevel; record?: SpuDetailDto | SkuDetailDto; parentId?: string; parentName?: string };
-type ArchiveTarget =
-  | { type: "spu"; id: string; name: string; skuCount: number }
-  | { type: "sku"; id: string; name: string; parentId: string };
+type ArchiveTarget = { id: string; name: string; skuCount: number };
 
 const pageSize = 20;
 const primaryKeys = new Set(["category", "sport", "series"]);
-const sportOptions = ["篮球", "足球", "田径", "网球"] as const;
+const sportFilterValues = { basketball: "篮球", football: "足球", athletics: "田径", tennis: "网球" } as const;
 
-function valueText(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return value ? "是" : "否";
-  if (Array.isArray(value)) return value.join("、") || "—";
-  return String(value);
-}
-
-function err(error: unknown) {
-  return error instanceof Error ? error.message : "操作失败，请重试。";
+function interpolate(template: string, values: Record<string, string | number>, locale: "zh" | "en") {
+  return Object.entries(values).reduce((result, [key, value]) => result.replaceAll(`{${key}}`, typeof value === "number" ? formatLocaleNumber(value, locale) : value), template);
 }
 
 export function ProductsPage() {
+  const { locale, t } = useLocale();
   const [status, setStatus] = useState<RecordStatus>("active");
   const [query, setQuery] = useState("");
   const [brand, setBrand] = useState("");
@@ -64,9 +51,6 @@ export function ProductsPage() {
   const [spuFields, setSpuFields] = useState<ModelFieldDto[]>([]);
   const [skuFields, setSkuFields] = useState<ModelFieldDto[]>([]);
   const [fieldsError, setFieldsError] = useState<ApiClientError | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<SpuDetailDto | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [form, setForm] = useState<ProductFormState | null>(null);
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -85,7 +69,7 @@ export function ProductsPage() {
     try {
       setResult(await apiRequest<ProductListResponse>(`/api/spus?${params.toString()}`));
     } catch (error) {
-      setLoadError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", err(error)));
+      setLoadError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", ""));
       setResult(null);
     } finally {
       setLoading(false);
@@ -109,108 +93,64 @@ export function ProductsPage() {
       setFieldsError(null);
     }).catch((error: unknown) => {
       if (cancelled) return;
-      setFieldsError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", err(error)));
+      setFieldsError(error instanceof ApiClientError ? error : new ApiClientError(500, "REQUEST_FAILED", ""));
     });
     return () => { cancelled = true; };
   }, []);
 
-  const customColumns = useMemo(
-    () => spuFields.filter((field) => !field.isSystem && field.showInList && !primaryKeys.has(field.key)),
-    [spuFields],
-  );
+  const customColumns = useMemo(() => spuFields.filter((field) => !field.isSystem && field.showInList && !primaryKeys.has(field.key)), [spuFields]);
   const currentPageCount = result?.pageCount ?? 0;
+  const unavailable = loadError || fieldsError;
+  const missingDatabase = loadError?.code === "DATABASE_NOT_CONFIGURED" || fieldsError?.code === "DATABASE_NOT_CONFIGURED";
 
   const showToast = (message: string, error = false) => {
     setToast({ message, error });
     window.setTimeout(() => setToast(null), 3000);
   };
-
-  const refreshDetail = async (id: string, expectedStatus: RecordStatus = status) => {
-    setDetailLoading(true);
+  const changeFilter = (setter: (value: string) => void, value: string) => {
+    setter(value);
+    setPage(1);
+  };
+  const resetFormErrors = () => { setFormError(""); setFieldErrors({}); };
+  const openCreateSpu = () => { setForm({ level: "spu" }); resetFormErrors(); };
+  const openEditSpu = async (item: SpuListItemDto) => {
     try {
-      const value = await apiRequest<SpuDetailDto>(`/api/spus/${id}?status=${expectedStatus}`);
-      setDetail(value);
-      return value;
-    } catch (error) {
-      setDetail(null);
-      showToast(err(error), true);
-      return null;
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const toggleDetail = async (id: string) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-      setDetail(null);
-      return;
-    }
-    setExpandedId(id);
-    setDetail(null);
-    await refreshDetail(id);
-  };
-
-  const openEditSpu = async (id: string) => {
-    const record = await refreshDetail(id, "active");
-    if (record) {
+      const record = await apiRequest<SpuDetailDto>(`/api/spus/${item.id}?status=active`);
       setForm({ level: "spu", record });
-      setFormError("");
-      setFieldErrors({});
+      resetFormErrors();
+    } catch (error) {
+      showToast(translatedApiError(error, locale), true);
     }
   };
-
-  const openEditSku = (sku: SkuDetailDto) => {
-    setForm({ level: "sku", record: sku, parentId: sku.spuId, parentName: `${sku.spuCode} · ${sku.spuName}` });
-    setFormError("");
-    setFieldErrors({});
-  };
-
-  const openCreateSpu = () => {
-    setForm({ level: "spu" });
-    setFormError("");
-    setFieldErrors({});
-  };
-
-  const openCreateSku = (parent: SpuDetailDto) => {
-    setForm({ level: "sku", parentId: parent.id, parentName: `${parent.spuCode} · ${parent.name}` });
-    setFormError("");
-    setFieldErrors({});
-  };
-
-  const openCreateSkuFromList = async (item: SpuListItemDto) => {
-    setExpandedId(item.id);
-    const parent = detail?.id === item.id ? detail : await refreshDetail(item.id);
-    if (parent) openCreateSku(parent);
+  const openCreateSku = (item: SpuListItemDto) => {
+    setForm({ level: "sku", parentId: item.id, parentName: `${item.spuCode} · ${item.name}` });
+    resetFormErrors();
   };
 
   const submitForm = async (payload: Record<string, unknown>) => {
     if (!form) return;
     setBusy(true);
-    setFormError("");
-    setFieldErrors({});
+    resetFormErrors();
     try {
       if (form.level === "spu") {
         if (form.record) {
           await apiRequest(`/api/spus/${form.record.id}`, { method: "PATCH", body: JSON.stringify(payload) });
-          showToast("SPU 已更新");
+          showToast(t("products.spuUpdatedToast"));
         } else {
           await apiRequest("/api/spus", { method: "POST", body: JSON.stringify(payload) });
-          showToast("SPU 已创建");
+          showToast(t("products.spuCreatedToast"));
         }
-      } else if (form.record) {
-        await apiRequest(`/api/skus/${form.record.id}`, { method: "PATCH", body: JSON.stringify(payload) });
-        showToast("SKU 已更新");
       } else if (form.parentId) {
         await apiRequest(`/api/spus/${form.parentId}/skus`, { method: "POST", body: JSON.stringify(payload) });
-        showToast("SKU 已创建");
+        showToast(t("products.skuCreatedToast"));
       }
       setForm(null);
       await loadList();
-      if (expandedId) await refreshDetail(expandedId);
     } catch (error) {
-      setFormError(err(error));
-      if (error instanceof ApiClientError && error.fields) setFieldErrors(error.fields);
+      setFormError(translatedApiError(error, locale));
+      if (error instanceof ApiClientError && error.fields) {
+        setFieldErrors(Object.fromEntries(Object.entries(error.fields).map(([key, message]) => [key, translatedFieldError(message, t)])));
+      }
     } finally {
       setBusy(false);
     }
@@ -220,259 +160,151 @@ export function ProductsPage() {
     if (!archiveTarget) return;
     setBusy(true);
     try {
-      if (archiveTarget.type === "spu") {
-        const response = await apiRequest<{ id: string; archivedSkuCount: number }>(`/api/spus/${archiveTarget.id}`, { method: "DELETE" });
-        showToast(`SPU 已归档，连同 ${response.archivedSkuCount} 个启用 SKU 一起归档`);
-        setExpandedId(null);
-        setDetail(null);
-      } else {
-        await apiRequest(`/api/skus/${archiveTarget.id}`, { method: "DELETE" });
-        showToast("SKU 已归档，观察记录已保留");
-      }
+      const response = await apiRequest<{ archivedSkuCount: number }>(`/api/spus/${archiveTarget.id}`, { method: "DELETE" });
+      showToast(interpolate(t("products.archiveCountToast"), { count: response.archivedSkuCount }, locale));
       setArchiveTarget(null);
       await loadList();
-      if (archiveTarget.type === "sku") await refreshDetail(archiveTarget.parentId);
     } catch (error) {
-      showToast(err(error), true);
+      showToast(translatedApiError(error, locale), true);
     } finally {
       setBusy(false);
     }
   };
-
   const restoreSpu = async (id: string) => {
     setBusy(true);
     try {
       const response = await apiRequest<{ restoredSkuCount: number }>(`/api/spus/${id}/restore`, { method: "POST" });
-      showToast(`SPU 已恢复，同时恢复 ${response.restoredSkuCount} 个关联 SKU`);
+      showToast(interpolate(t("products.spuRestoredToast"), { count: response.restoredSkuCount }, locale));
       await loadList();
-      if (expandedId === id) await refreshDetail(id, "active");
-    } catch (error) { showToast(err(error), true); }
+    } catch (error) { showToast(translatedApiError(error, locale), true); }
     finally { setBusy(false); }
   };
-
-  const restoreSku = async (sku: SkuDetailDto) => {
-    setBusy(true);
-    try {
-      await apiRequest(`/api/skus/${sku.id}/restore`, { method: "POST" });
-      showToast("SKU 已恢复");
-      await loadList();
-      await refreshDetail(sku.spuId, status);
-    } catch (error) { showToast(err(error), true); }
-    finally { setBusy(false); }
-  };
-
-  const changeStatus = (next: RecordStatus) => {
-    setStatus(next);
-    setPage(1);
-    setExpandedId(null);
-    setDetail(null);
-  };
-
-  const changeFilter = (setter: (value: string) => void, value: string) => {
-    setter(value);
-    setPage(1);
-  };
-
-  const missingDatabase = loadError?.code === "DATABASE_NOT_CONFIGURED" || fieldsError?.code === "DATABASE_NOT_CONFIGURED";
-  const unavailable = loadError || fieldsError;
 
   return (
     <section>
       <div className="page-heading">
-        <div>
-          <p className="eyebrow">PRODUCT CATALOG</p>
-          <h1 className="page-title">商品数据</h1>
-          <p className="page-description">以 SPU 为主体管理商品资料，在每个档案中维护颜色、尺码等 SKU 变体。</p>
-        </div>
-        <div className="page-actions">
-          {status === "active" && <button className="button button-primary" onClick={openCreateSpu} disabled={Boolean(unavailable) || busy}>
-            <Plus size={15} /> 新建 SPU
-          </button>}
-        </div>
+        <div><p className="eyebrow">{t("products.eyebrow")}</p><h1 className="page-title">{t("products.title")}</h1></div>
+        {status === "active" && <div className="page-actions"><button className="button button-primary" onClick={openCreateSpu} disabled={Boolean(unavailable) || busy}><Plus size={15} />{t("products.createSpu")}</button></div>}
       </div>
 
-      {unavailable && <DatabaseNotice error={loadError ?? fieldsError!} missingDatabase={Boolean(missingDatabase)} />}
+      {unavailable && <div className={`notice ${missingDatabase ? "warning" : ""}`} role="status" style={{ marginBottom: 20 }}>
+        {missingDatabase ? <Database size={17} /> : <CircleAlert size={17} />}
+        <div><strong>{missingDatabase ? t("products.databaseNeededTitle") : t("products.databaseUnavailableTitle")}</strong><p>{missingDatabase ? t("products.databaseSetup") : translatedApiError(loadError ?? fieldsError, locale)}</p></div>
+      </div>}
 
       <div className="toolbar">
         <div className="toolbar-group">
-          <label className="search-wrap"><Search size={15} aria-hidden="true" /><input className="search-input" value={query} onChange={(event) => changeFilter(setQuery, event.target.value)} placeholder="搜索商品名称、编码或字段" aria-label="搜索商品名称、编码或字段" /></label>
-          <input className="select-input filter-input" value={brand} onChange={(event) => changeFilter(setBrand, event.target.value)} placeholder="品牌" aria-label="按品牌筛选" />
-          <select className="select-input filter-input" value={sport} onChange={(event) => changeFilter(setSport, event.target.value)} aria-label="按运动类型筛选">
-            <option value="">全部运动</option>
-            {sportOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          <label className="search-wrap"><Search size={15} aria-hidden="true" /><input className="search-input" value={query} onChange={(event) => changeFilter(setQuery, event.target.value)} placeholder={t("products.search")} aria-label={t("products.search")} /></label>
+          <input className="select-input filter-input" value={brand} onChange={(event) => changeFilter(setBrand, event.target.value)} placeholder={t("products.brandFilter")} aria-label={t("products.brandFilterLabel")} />
+          <select className="select-input filter-input" value={sport} onChange={(event) => changeFilter(setSport, event.target.value)} aria-label={t("products.sportFilterLabel")}>
+            <option value="">{t("products.sportFilter")}</option>
+            {(["basketball", "football", "athletics", "tennis"] as const).map((key) => <option key={key} value={sportFilterValues[key]}>{t(`stars.sports.${key}`)}</option>)}
           </select>
-          <input className="select-input filter-input" value={athlete} onChange={(event) => changeFilter(setAthlete, event.target.value)} placeholder="签约明星" aria-label="按签约明星筛选" />
+          <input className="select-input filter-input" value={athlete} onChange={(event) => changeFilter(setAthlete, event.target.value)} placeholder={t("products.athleteFilter")} aria-label={t("products.athleteFilterLabel")} />
         </div>
         <div className="toolbar-group">
-          <div className="view-switch" role="group" aria-label="商品记录状态">
-            <button type="button" aria-pressed={status === "active"} onClick={() => changeStatus("active")}>当前商品</button>
-            <button type="button" aria-pressed={status === "archived"} onClick={() => changeStatus("archived")}>已归档</button>
+          <div className="view-switch" role="group" aria-label={t("products.recordStatus")}>
+            <button type="button" aria-pressed={status === "active"} onClick={() => { setStatus("active"); setPage(1); }}>{t("products.active")}</button>
+            <button type="button" aria-pressed={status === "archived"} onClick={() => { setStatus("archived"); setPage(1); }}>{t("products.archived")}</button>
           </div>
-          <span className="count-label">{result?.total ?? 0} 条</span>
+          <span className="count-label">{formatLocaleNumber(result?.total ?? 0, locale)} {t("products.count")}</span>
         </div>
       </div>
 
       <div className="data-card">
-        {loading ? (
-          <div className="loading-block"><span className="spinner" />正在从 Neon 读取商品</div>
-        ) : result?.items.length ? (
+        {loading ? <div className="loading-block"><span className="spinner" />{t("products.loading")}</div> : result?.items.length ? (
           <>
             <div className="table-scroll">
               <table className="data-table product-table">
-                <thead><tr>
-                  <th aria-label="展开详情"></th><th>SPU / 商品</th><th>品牌</th><th>品类</th><th>运动</th><th>系列</th>
-                  {customColumns.map((field) => <th key={field.id}>{field.label}</th>)}
-                  <th>SKU 数</th><th>最近录入 SKU · 最多 5 个</th><th>最近更新</th><th><span className="sr-only">操作</span></th>
-                </tr></thead>
+                <thead><tr><th>{t("products.headerSpu")}</th><th>{t("products.brand")}</th><th>{t("products.category")}</th><th>{t("products.sport")}</th><th>{t("products.series")}</th>{customColumns.map((field) => <th key={field.id}>{translatedFieldLabel(field.key, field.label, t)}</th>)}<th>{t("products.skuCount")}</th><th>{t("products.updatedAt")}</th><th><span className="sr-only">{t("modelFields.edit")}</span></th></tr></thead>
                 <tbody>
-                  {result.items.map((item) => (
-                    <ProductRow
-                      key={item.id}
-                      item={item}
-                      status={status}
-                      fields={customColumns}
-                      expanded={expandedId === item.id}
-                      detail={expandedId === item.id ? detail : null}
-                      detailLoading={expandedId === item.id && detailLoading}
-                      busy={busy}
-                      onToggle={() => void toggleDetail(item.id)}
-                      onEdit={() => void openEditSpu(item.id)}
-                      onArchive={() => setArchiveTarget({ type: "spu", id: item.id, name: item.name, skuCount: item.skuCount })}
-                      onRestore={() => void restoreSpu(item.id)}
-                      onAddSku={() => void openCreateSkuFromList(item)}
-                      onEditSku={openEditSku}
-                      onArchiveSku={(sku) => setArchiveTarget({ type: "sku", id: sku.id, name: sku.name, parentId: item.id })}
-                      onRestoreSku={(sku) => void restoreSku(sku)}
-                    />
-                  ))}
+                  {result.items.map((item) => <ProductRows
+                    key={item.id}
+                    item={item}
+                    status={status}
+                    customColumns={customColumns}
+                    busy={busy}
+                    locale={locale}
+                    t={t}
+                    onEdit={() => void openEditSpu(item)}
+                    onAddSku={() => openCreateSku(item)}
+                    onArchive={() => setArchiveTarget(item)}
+                    onRestore={() => void restoreSpu(item.id)}
+                  />)}
                 </tbody>
               </table>
             </div>
             <div className="table-footer">
-              <span className="count-label">第 {result.page} / {Math.max(1, result.pageCount)} 页 · 每页 {result.pageSize} 条</span>
+              <span className="count-label">{interpolate(t("products.page"), { page: result.page, pages: Math.max(1, result.pageCount) }, locale)} · {interpolate(t("products.rowsPerPage"), { count: result.pageSize }, locale)}</span>
               <div className="pagination">
-                <button aria-label="上一页" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={15} /></button>
+                <button aria-label={t("products.previousPage")} disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={15} /></button>
                 <span>{page} / {Math.max(1, currentPageCount)}</span>
-                <button aria-label="下一页" disabled={page >= currentPageCount || loading} onClick={() => setPage((value) => Math.min(currentPageCount, value + 1))}><ChevronRight size={15} /></button>
+                <button aria-label={t("products.nextPage")} disabled={page >= currentPageCount || loading} onClick={() => setPage((value) => Math.min(currentPageCount, value + 1))}><ChevronRight size={15} /></button>
               </div>
             </div>
           </>
         ) : (
-          <div className="empty-state">
-            <div>
-              <span className="empty-icon">{missingDatabase ? <Database size={19} /> : <PackageOpen size={19} />}</span>
-              <h3>{loadError ? (missingDatabase ? "先连接 Neon 数据库" : "暂时无法读取商品") : (status === "archived" ? "没有已归档商品" : "Neon 当前没有商品记录")}</h3>
-              <p>{loadError ? (missingDatabase ? "复制 .env.example 为 .env.local，填写连接串并运行 pnpm db:migrate。" : loadError.message) : (status === "archived" ? "归档的 SPU 会显示在这里，并可随时恢复。" : "创建第一条 SPU 后，可以在商品详情中录入它的 SKU 变体。商品数据只从 Neon 读取。")}</p>
-              {!loadError && status === "active" && <button className="button button-primary" onClick={openCreateSpu} disabled={Boolean(unavailable) || busy}><Plus size={14} />新建 SPU</button>}
-            </div>
-          </div>
+          <div className="empty-state"><div><span className="empty-icon">{loadError ? <Database size={19} /> : <PackageOpen size={19} />}</span>
+            <h3>{loadError ? (missingDatabase ? t("products.databaseTitle") : t("products.unavailableTitle")) : status === "archived" ? t("products.noArchived") : t("products.noProducts")}</h3>
+            <p>{loadError ? (missingDatabase ? t("products.databaseSetup") : translatedApiError(loadError, locale)) : status === "archived" ? t("products.emptyArchived") : t("products.emptyActive")}</p>
+            {!loadError && status === "active" && <button className="button button-primary" onClick={openCreateSpu} disabled={Boolean(unavailable) || busy}><Plus size={14} />{t("products.createSpu")}</button>}
+          </div></div>
         )}
       </div>
 
-      {form && <ProductRecordForm
-        key={`${form.level}-${form.record?.id ?? "new"}`}
-        level={form.level}
-        fields={form.level === "spu" ? spuFields : skuFields}
-        record={form.record}
-        parentName={form.parentName}
-        pending={busy}
-        error={formError}
-        fieldErrors={fieldErrors}
-        onClose={() => setForm(null)}
-        onSubmit={(payload) => void submitForm(payload)}
-      />}
-
+      {form && <ProductRecordForm key={`${form.level}-${form.record?.id ?? "new"}-${form.parentId ?? ""}`} level={form.level} fields={form.level === "spu" ? spuFields : skuFields} record={form.record} parentName={form.parentName} pending={busy} error={formError} fieldErrors={fieldErrors} onClose={() => setForm(null)} onSubmit={(payload) => void submitForm(payload)} />}
       {archiveTarget && <ArchiveConfirmation
-        title={`删除${archiveTarget.type === "spu" ? " SPU" : " SKU"}「${archiveTarget.name}」`}
-        description={archiveTarget.type === "spu"
-          ? `该 SPU 下当前有 ${archiveTarget.skuCount} 个启用 SKU。删除会将 SPU 与这些 SKU 移入已归档列表，价格、来源和其他观察记录都会保留，之后可以恢复。`
-          : "该 SKU 会从默认列表和 SKU 摘要中移除并进入已归档列表，其字段值、来源和价格/可售观察仍会保留，之后可以恢复。"}
+        title={interpolate(t("products.deleteTitle"), { level: "SPU", name: archiveTarget.name }, locale)}
+        description={interpolate(t("products.deleteSpuDescription"), { count: archiveTarget.skuCount }, locale)}
         pending={busy}
         onCancel={() => setArchiveTarget(null)}
         onConfirm={() => void confirmArchive()}
       />}
-
       {toast && <div className="toast-region" role="status"><div className={`toast${toast.error ? " error" : ""}`}>{toast.error ? <CircleAlert size={15} /> : <Database size={15} />}{toast.message}</div></div>}
     </section>
   );
 }
 
-function ProductRow({
-  item,
-  status,
-  fields,
-  expanded,
-  detail,
-  detailLoading,
-  busy,
-  onToggle,
-  onEdit,
-  onArchive,
-  onRestore,
-  onAddSku,
-  onEditSku,
-  onArchiveSku,
-  onRestoreSku,
+function ProductRows({
+  item, status, customColumns, busy, locale, t, onEdit, onAddSku, onArchive, onRestore,
 }: {
   item: SpuListItemDto;
   status: RecordStatus;
-  fields: ModelFieldDto[];
-  expanded: boolean;
-  detail: SpuDetailDto | null;
-  detailLoading: boolean;
+  customColumns: ModelFieldDto[];
   busy: boolean;
-  onToggle: () => void;
+  locale: "zh" | "en";
+  t: (key: TranslationKey) => string;
   onEdit: () => void;
+  onAddSku: () => void;
   onArchive: () => void;
   onRestore: () => void;
-  onAddSku: () => void;
-  onEditSku: (sku: SkuDetailDto) => void;
-  onArchiveSku: (sku: SkuDetailDto) => void;
-  onRestoreSku: (sku: SkuDetailDto) => void;
 }) {
-  const columnCount = 10 + fields.length;
-  return (
-    <>
-      <tr className={expanded ? "row-expanded" : ""}>
-        <td><button className="icon-button" aria-label={`${expanded ? "收起" : "展开"} ${item.name} 详情`} aria-expanded={expanded} onClick={onToggle}><ChevronDown size={15} style={{ transform: expanded ? "rotate(180deg)" : undefined, transition: "transform .15s ease" }} /></button></td>
-        <td><div className="product-name">{item.name}</div><div className="code-text" style={{ marginTop: 3 }}>{item.spuCode}</div>{item.archivedAt && <span className="tag archived" style={{ marginTop: 5 }}>已归档</span>}</td>
-        <td>{item.brand || "—"}</td>
-        <td>{valueText(item.values.category)}</td>
-        <td>{valueText(item.values.sport)}</td>
-        <td>{valueText(item.values.series)}</td>
-        {fields.map((field) => <td key={field.id}>{valueText(item.values[field.key])}</td>)}
-        <td><span className="sku-count">{item.skuCount}</span></td>
-        <td><div className="sku-name-list">{item.latestSkus.length ? item.latestSkus.map((sku) => <span className="sku-name" key={sku.id} title={`${sku.skuCode} · ${sku.name}`}>{sku.name}</span>) : <span className="count-label">暂无 SKU</span>}{item.skuCount > item.latestSkus.length && <span className="sku-more">+{item.skuCount - item.latestSkus.length} 个</span>}</div></td>
-        <td><span className="product-subline">{new Date(item.updatedAt).toLocaleDateString("zh-CN")}</span></td>
-        <td><div className="table-actions">
-          <button className="icon-button" title="查看详情" aria-label={`查看 ${item.name} 详情`} aria-expanded={expanded} onClick={onToggle}><Eye size={15} /></button>
-          {status === "active" ? <>
-            <button className="icon-button" title="新建 SKU" aria-label={`为 ${item.name} 新建 SKU`} disabled={busy} onClick={onAddSku}><PackagePlus size={15} /></button>
-            <button className="icon-button" title="编辑 SPU" aria-label={`编辑 ${item.name}`} disabled={busy} onClick={onEdit}><SquarePen size={15} /></button>
-            <button className="icon-button danger" title="删除 SPU（可在已归档列表恢复）" aria-label={`删除 ${item.name}（归档，可恢复）`} disabled={busy} onClick={onArchive}><Trash2 size={15} /></button>
-          </> : <button className="icon-button" title="恢复 SPU" aria-label={`恢复 ${item.name}`} disabled={busy} onClick={onRestore}><RotateCcw size={15} /></button>}
-        </div></td>
-      </tr>
-      {expanded && <tr><td colSpan={columnCount} style={{ padding: 0 }}>{detailLoading ? <div className="loading-block"><span className="spinner" />正在读取商品档案</div> : detail ? (
-        <ProductDetail
-          detail={detail}
-          onEditSpu={onEdit}
-          onAddSku={onAddSku}
-          onEditSku={onEditSku}
-          onArchiveSpu={onArchive}
-          onArchiveSku={onArchiveSku}
-          onRestoreSpu={onRestore}
-          onRestoreSku={onRestoreSku}
-          busy={busy}
-        />
-      ) : <div className="empty-state" style={{ minHeight: 120 }}><div><span className="empty-icon"><ArrowDownUp size={17} /></span><h3>无法读取商品档案</h3><p>请关闭后重新打开此商品。</p></div></div>}</td></tr>}
-    </>
-  );
-}
-
-function DatabaseNotice({ error, missingDatabase }: { error: ApiClientError; missingDatabase: boolean }) {
-  return <div className={`notice ${missingDatabase ? "warning" : ""}`} role="status" style={{ marginBottom: 20 }}>
-    {missingDatabase ? <Database size={17} /> : <CircleAlert size={17} />}
-    <div><strong>{missingDatabase ? "商品数据需要 Neon 数据库" : "商品数据服务暂时不可用"}</strong><p>{missingDatabase ? "本地开发请填写 .env.local 中的 DATABASE_URL 和 DATABASE_URL_UNPOOLED，并运行 pnpm db:migrate。" : error.message}</p></div>
-  </div>;
+  const colSpan = 8 + customColumns.length;
+  return <>
+    <tr>
+      <td><div className="product-name">{item.name}</div><div className="code-text" style={{ marginTop: 3 }}>{item.spuCode}</div>{item.archivedAt && <span className="tag archived" style={{ marginTop: 5 }}>{t("products.archived")}</span>}</td>
+      <td>{item.brand || "—"}</td>
+      <td>{formatProductValue(item.values.category, locale)}</td>
+      <td>{formatProductValue(item.values.sport, locale)}</td>
+      <td>{formatProductValue(item.values.series, locale)}</td>
+      {customColumns.map((field) => <td key={field.id}>{formatProductValue(item.values[field.key], locale, "—", field.type)}</td>)}
+      <td><span className="sku-count">{formatLocaleNumber(item.skuCount, locale)}</span></td>
+      <td><span className="product-subline">{formatLocaleDate(item.updatedAt, locale)}</span></td>
+      <td><div className="table-actions">
+        <LocaleLink className="icon-button" title={t("products.openDetails")} aria-label={`${t("products.openDetails")}: ${item.name}`} href={`/products/${item.id}`}><Eye size={15} /></LocaleLink>
+        {status === "active" ? <>
+          <button className="icon-button" title={t("products.createSku")} aria-label={`${t("products.createSku")}: ${item.name}`} disabled={busy} onClick={onAddSku}><PackagePlus size={15} /></button>
+          <button className="icon-button" title={t("products.editSpu")} aria-label={`${t("products.editSpu")}: ${item.name}`} disabled={busy} onClick={onEdit}><SquarePen size={15} /></button>
+          <button className="icon-button danger" title={t("products.deleteSpu")} aria-label={`${t("products.deleteSpu")}: ${item.name}`} disabled={busy} onClick={onArchive}><Trash2 size={15} /></button>
+        </> : <button className="icon-button" title={t("products.restoreSpu")} aria-label={`${t("products.restoreSpu")}: ${item.name}`} disabled={busy} onClick={onRestore}><RotateCcw size={15} /></button>}
+      </div></td>
+    </tr>
+    <tr className="sku-cards-row"><td colSpan={colSpan}>
+      <div className="sku-cards-heading"><span>{t("products.latestSkus")}</span>{item.skuCount > item.latestSkus.length && <span className="sku-more">+{formatLocaleNumber(item.skuCount - item.latestSkus.length, locale)} {t("products.moreSkus")}</span>}</div>
+      {item.latestSkus.length ? <div className="sku-card-list">{item.latestSkus.slice(0, 5).map((sku) => <article className="sku-summary-card" key={sku.id}>
+        <div className="sku-summary-heading"><strong>{sku.name}</strong><span className="code-text">{sku.skuCode}</span></div>
+        {sku.fields.length ? <dl>{sku.fields.map((field) => <div key={field.key}><dt>{translatedFieldLabel(field.key, field.label, t)}</dt><dd>{formatProductValue(field.value, locale, "—", field.type)}</dd></div>)}</dl> : <span className="count-label">{t("products.noSku")}</span>}
+      </article>)}</div> : <div className="sku-card-empty">{t("products.noSku")}</div>}
+    </td></tr>
+  </>;
 }

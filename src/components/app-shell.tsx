@@ -1,68 +1,73 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
+import { LocaleLink } from "@/lib/i18n/locale-link";
+import { useLocale } from "@/lib/i18n/locale-provider";
+import type { Locale, TranslationKey } from "@/lib/i18n/types";
 
-const navGroups = [
+const navGroups: { label: TranslationKey; id: string; items: { href: string; label: TranslationKey }[] }[] = [
   {
-    label: "商品",
+    label: "nav.products",
     id: "products-menu",
     items: [
-      { href: "/products", label: "商品数据" },
-      { href: "/products/model", label: "商品模型" },
-      { href: "/products/sales", label: "销售数据" },
+      { href: "/products", label: "nav.productData" },
+      { href: "/products/model", label: "nav.productModel" },
+      { href: "/products/sales", label: "nav.salesData" },
     ],
   },
   {
-    label: "运动",
+    label: "nav.sports",
     id: "sports-menu",
-    items: [{ href: "/sports/nba", label: "NBA" }],
+    items: [{ href: "/sports/nba", label: "nav.nba" }],
   },
   {
-    label: "明星",
+    label: "nav.stars",
     id: "stars-menu",
     items: [
-      { href: "/stars/basketball", label: "篮球" },
-      { href: "/stars/football", label: "足球" },
-      { href: "/stars/tennis", label: "网球" },
-      { href: "/stars/athletics", label: "田径" },
+      { href: "/stars/basketball", label: "nav.basketball" },
+      { href: "/stars/football", label: "nav.football" },
+      { href: "/stars/tennis", label: "nav.tennis" },
+      { href: "/stars/athletics", label: "nav.athletics" },
     ],
   },
   {
-    label: "分析",
+    label: "nav.analysis",
     id: "analysis-menu",
-    items: [{ href: "/analysis", label: "数据分析" }],
+    items: [{ href: "/analysis", label: "nav.dataAnalysis" }],
   },
   {
-    label: "配置",
+    label: "nav.settings",
     id: "settings-menu",
     items: [
-      { href: "/settings/models", label: "模型参数" },
-      { href: "/settings/schedules", label: "定时配置" },
+      { href: "/settings/models", label: "nav.modelSettings" },
+      { href: "/settings/schedules", label: "nav.schedules" },
     ],
   },
-] as const;
+];
 
-function BrandLockup({ onNavigate }: { onNavigate: () => void }) {
+function BrandLockup({ onNavigate, label, title }: { onNavigate: () => void; label: string; title: string }) {
   return (
-    <Link className="brand-lockup" href="/products" aria-label="Nike & NBA 商品数据平台首页" onClick={onNavigate}>
+    <LocaleLink className="brand-lockup" href="/products" aria-label={label} onClick={onNavigate}>
       <span className="brand-kicker">Nike & NBA</span>
-      <strong className="brand-title">商品数据平台</strong>
-    </Link>
+      <strong className="brand-title">{title}</strong>
+    </LocaleLink>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
+  const publicPathname = pathname.replace(/^\/(?:zh|en)(?=\/|$)/, "") || "/";
   const router = useRouter();
-  const loginPage = pathname === "/login";
+  const { locale, t } = useLocale();
+  const loginPage = publicPathname === "/login";
   const navigationRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [localeError, setLocaleError] = useState("");
 
   useEffect(() => {
     const closeOnOutsidePointer = (event: PointerEvent) => {
@@ -75,18 +80,34 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
   }, []);
 
+  const changeLanguage = async (nextLocale: Locale) => {
+    if (nextLocale === locale) return;
+    setLocaleError("");
+    try {
+      const response = await fetch("/api/preferences/locale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: nextLocale }),
+      });
+      if (!response.ok) throw new Error("locale preference rejected");
+      window.location.reload();
+    } catch {
+      setLocaleError(t("common.languageSwitchFailed"));
+    }
+  };
+
   if (loginPage) return <>{children}</>;
 
   return (
     <div className="app-layout">
       <header className="site-header">
-        <BrandLockup onNavigate={() => { setOpenMenu(null); setMobileOpen(false); }} />
+        <BrandLockup label={t("nav.brandHome")} title={t("nav.brandTitle")} onNavigate={() => { setOpenMenu(null); setMobileOpen(false); }} />
 
         <nav
           ref={navigationRef}
           id="primary-navigation"
           className={`top-navigation${mobileOpen ? " mobile-open" : ""}`}
-          aria-label="主导航"
+          aria-label={t("nav.mainNavigation")}
           onKeyDown={(event) => {
             if (event.key === "Escape" && openMenu) {
               event.preventDefault();
@@ -96,7 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           }}
         >
           {navGroups.map((group) => {
-            const activeGroup = group.items.some(({ href }) => pathname === href || pathname.startsWith(`${href}/`));
+            const activeGroup = group.items.some(({ href }) => publicPathname === href || publicPathname.startsWith(`${href}/`));
             const expanded = openMenu === group.id;
 
             return (
@@ -130,14 +151,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                     }
                   }}
                 >
-                  {group.label}
+                  {t(group.label)}
                   <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
                 </button>
                 <div className="nav-dropdown" id={group.id} hidden={!expanded}>
                   {group.items.map(({ href, label }) => {
-                    const active = pathname === href;
+                    const active = publicPathname === href;
                     return (
-                      <Link
+                      <LocaleLink
                         key={href}
                         className={`nav-dropdown-link${active ? " active" : ""}`}
                         href={href}
@@ -148,7 +169,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         }}
                       >
                         {label}
-                      </Link>
+                      </LocaleLink>
                     );
                   })}
                 </div>
@@ -161,7 +182,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ref={menuButtonRef}
           type="button"
           className="mobile-menu-button"
-          aria-label={mobileOpen ? "关闭导航菜单" : "打开导航菜单"}
+          aria-label={mobileOpen ? t("nav.closeMenu") : t("nav.openMenu")}
           aria-expanded={mobileOpen}
           aria-controls="primary-navigation"
           onClick={() => {
@@ -171,8 +192,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <button type="button" className="logout-button" onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.replace("/login"); }}>退出</button>
+        <div className="language-switch" role="group" aria-label={t("nav.switchLanguage")}>
+          <button type="button" aria-pressed={locale === "zh"} onClick={() => void changeLanguage("zh")}>{t("common.languageChinese")}</button>
+          <button type="button" aria-pressed={locale === "en"} onClick={() => void changeLanguage("en")}>{t("common.languageEnglish")}</button>
+        </div>
+        <button type="button" className="logout-button" onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.replace("/login"); router.refresh(); }}>{t("common.logout")}</button>
       </header>
+
+      {localeError && <p className="language-error" role="status">{localeError}</p>}
 
       <main className="main-content">{children}</main>
     </div>
