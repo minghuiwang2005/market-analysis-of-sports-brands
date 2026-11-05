@@ -64,6 +64,20 @@
       "when": 1793845861001,
       "tag": "0008_additional_historical_nike_signatures",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793845861002,
+      "tag": "0009_nba_classic_games",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793845861003,
+      "tag": "0010_nba_classic_game_result_source",
+      "breakpoints": true
     }
   ]
 }

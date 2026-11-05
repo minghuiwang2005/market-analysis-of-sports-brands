@@ -86,12 +86,7 @@
 .heroMark i { width: 1px; height: 42px; margin: 9px 5px; background: #ffffff7a; }
 
 .intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-  align-items: end;
-  gap: 30px;
-  border-bottom: 1px solid var(--line);
-  padding: 52px 4px 46px;
+  padding: 52px 4px 16px;
 }
 .sectionNumber {
   display: block;
@@ -107,12 +102,115 @@
   letter-spacing: -.065em;
   line-height: 1.28;
 }
-.intro > p {
-  max-width: 540px;
-  margin: 0 0 4px auto;
+.classicGames {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 4px 46px;
+}
+.classicGamesHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 19px;
+}
+.classicGamesHeader h2 {
+  margin: 9px 0 0;
+  font-size: clamp(22px, 2.3vw, 30px);
+  font-weight: 700;
+  letter-spacing: -.055em;
+  line-height: 1.2;
+}
+.classicGamesCount {
+  padding-bottom: 3px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: .08em;
+}
+.classicGamesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.classicGameCard {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-top: 3px solid #aa564a;
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 18px 19px 16px;
+  box-shadow: 0 3px 12px #211b1607;
+}
+.classicGameMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+.classicGameMeta span { color: #9b5c4e; }
+.classicGameMeta time { font-variant-numeric: tabular-nums; letter-spacing: .07em; }
+.classicGameCard h3 {
+  margin: 18px 0 9px;
+  color: #272421;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.04em;
+  line-height: 1.45;
+}
+.classicGameMatchup {
+  margin: 0;
   color: var(--ink-secondary);
-  font-size: 14px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.classicGameResult {
+  margin: 3px 0 0;
+  color: #292723;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.classicGameDescription {
+  flex: 1;
+  margin: 14px 0 17px;
+  color: #68625c;
+  font-size: 12px;
   line-height: 1.85;
+}
+.classicGameSources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 11px 0 0;
+  border-top: 1px solid #eeece8;
+  list-style: none;
+}
+.classicGameSources a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #9b5c4e;
+  font-size: 10px;
+  font-weight: 700;
+}
+.classicGameSources a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.classicGamesStatus {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 16px;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  line-height: 1.7;
 }
 
 .history { padding-top: 54px; }
@@ -264,8 +362,9 @@
 @media (max-width: 900px) {
   .hero { min-height: 330px; }
   .heroMark { display: none; }
-  .intro { grid-template-columns: 1fr; gap: 20px; padding: 42px 3px 38px; }
-  .intro > p { max-width: 650px; margin: 0; }
+  .intro { padding: 42px 3px 15px; }
+  .classicGames { padding-bottom: 40px; }
+  .classicGamesGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .history { padding-top: 42px; }
   .historyHeader { align-items: start; flex-direction: column; gap: 17px; }
   .legend { justify-content: flex-start; }
@@ -281,9 +380,16 @@
   .heroTitle { margin-left: -4px; font-size: 83px; }
   .heroSubtitle { font-size: 23px; }
   .heroDescription { margin-top: 17px; font-size: 13px; }
-  .intro { padding: 35px 2px 33px; }
+  .intro { padding: 35px 2px 13px; }
   .intro h2 { font-size: 29px; }
-  .intro > p { font-size: 13px; }
+  .classicGames { padding: 12px 2px 33px; }
+  .classicGamesHeader { align-items: start; margin-bottom: 14px; }
+  .classicGamesHeader h2 { font-size: 23px; }
+  .classicGamesCount { padding-top: 20px; font-size: 9px; white-space: nowrap; }
+  .classicGamesGrid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .classicGameCard { padding: 17px 16px 15px; }
+  .classicGameCard h3 { margin-top: 14px; font-size: 16px; }
+  .classicGameDescription { margin: 11px 0 14px; }
   .history { padding-top: 35px; }
   .legend { gap: 9px 13px; }
   .trackLabels { display: none; }

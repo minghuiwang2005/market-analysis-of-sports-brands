@@ -1,7 +1,85 @@
 import "server-only";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDatabase } from "@/lib/db";
-import { sportsTimelineEventSources, sportsTimelineEvents } from "@/lib/db/schema";
+import {
+  nbaClassicGameSources,
+  nbaClassicGames,
+  sportsTimelineEventSources,
+  sportsTimelineEvents,
+} from "@/lib/db/schema";
+
+export type NbaClassicGame = {
+  id: string;
+  occurredYear: number;
+  gameLabel: string;
+  title: string;
+  matchup: string;
+  result: string;
+  description: string;
+  sources: {
+    url: string;
+    publisher: string;
+    sourceTitle: string;
+  }[];
+};
+
+export async function getNbaClassicGames(): Promise<NbaClassicGame[]> {
+  const db = getDatabase();
+  const rows = await db
+    .select({
+      id: nbaClassicGames.id,
+      occurredYear: nbaClassicGames.occurredYear,
+      gameLabel: nbaClassicGames.gameLabel,
+      title: nbaClassicGames.title,
+      matchup: nbaClassicGames.matchup,
+      result: nbaClassicGames.result,
+      description: nbaClassicGames.description,
+      sourceUrl: nbaClassicGameSources.url,
+      sourcePublisher: nbaClassicGameSources.publisher,
+      sourceTitle: nbaClassicGameSources.sourceTitle,
+    })
+    .from(nbaClassicGames)
+    .innerJoin(
+      nbaClassicGameSources,
+      and(
+        eq(nbaClassicGameSources.gameId, nbaClassicGames.id),
+        eq(nbaClassicGameSources.verificationStatus, "verified"),
+      ),
+    )
+    .where(eq(nbaClassicGames.published, true))
+    .orderBy(
+      asc(nbaClassicGames.occurredYear),
+      asc(nbaClassicGames.sortOrder),
+      asc(nbaClassicGames.eventKey),
+      asc(nbaClassicGameSources.url),
+    );
+
+  const gamesById = new Map<string, NbaClassicGame>();
+  for (const row of rows) {
+    let game = gamesById.get(row.id);
+    if (!game) {
+      game = {
+        id: row.id,
+        occurredYear: row.occurredYear,
+        gameLabel: row.gameLabel,
+        title: row.title,
+        matchup: row.matchup,
+        result: row.result,
+        description: row.description,
+        sources: [],
+      };
+      gamesById.set(row.id, game);
+    }
+
+    game.sources.push({
+      url: row.sourceUrl,
+      publisher: row.sourcePublisher,
+      sourceTitle: row.sourceTitle,
+    });
+  }
+
+  return [...gamesById.values()];
+}
 
 export type TimelineEvent = {
   id: string;

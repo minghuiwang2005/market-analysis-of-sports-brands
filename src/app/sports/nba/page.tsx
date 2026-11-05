@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { io } from "next/cache";
 import { ArrowUpRight } from "lucide-react";
-import { getSportsTimelineGroups, type TimelineEvent } from "@/lib/sports-timeline/queries";
+import {
+  getNbaClassicGames,
+  getSportsTimelineGroups,
+  type NbaClassicGame,
+  type TimelineEvent,
+} from "@/lib/sports-timeline/queries";
 import { DatabaseConfigurationError } from "@/lib/db";
 import styles from "./page.module.css";
 
@@ -72,6 +77,60 @@ function EventCard({ event }: { event: TimelineEvent }) {
         ))}
       </ul>
     </article>
+  );
+}
+
+function ClassicGameCard({ game }: { game: NbaClassicGame }) {
+  return (
+    <article className={styles.classicGameCard}>
+      <div className={styles.classicGameMeta}>
+        <span>{game.gameLabel}</span>
+        <time dateTime={String(game.occurredYear)}>{game.occurredYear}</time>
+      </div>
+      <h3>{game.title}</h3>
+      <p className={styles.classicGameMatchup}>{game.matchup}</p>
+      <p className={styles.classicGameResult}>{game.result}</p>
+      <p className={styles.classicGameDescription}>{game.description}</p>
+      <ul className={styles.classicGameSources} aria-label={`${game.title} 的资料来源`}>
+        {game.sources.map((source) => (
+          <li key={source.url}>
+            <a
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${source.publisher}：${source.sourceTitle}（在新窗口打开）`}
+            >
+              {source.publisher} <ArrowUpRight size={13} aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+async function ClassicGamesContent() {
+  await io();
+
+  let games: Awaited<ReturnType<typeof getNbaClassicGames>>;
+  try {
+    games = await getNbaClassicGames();
+  } catch (error) {
+    const message = error instanceof DatabaseConfigurationError
+      ? "Neon 数据库尚未配置。请检查数据库连接后重试。"
+      : "暂时无法读取 Neon 经典比赛资料，请确认数据库连接和迁移状态后重试。";
+
+    return <p className={styles.classicGamesStatus} role="alert">{message}</p>;
+  }
+
+  if (games.length === 0) {
+    return <p className={styles.classicGamesStatus}>暂时没有可展示的 NBA 经典比赛资料。</p>;
+  }
+
+  return (
+    <div className={styles.classicGamesGrid}>
+      {games.map((game) => <ClassicGameCard game={game} key={game.id} />)}
+    </div>
   );
 }
 
@@ -155,12 +214,21 @@ export default function NbaPage() {
       <section className={styles.intro} aria-label="NBA 历史概览">
         <div className={styles.introLead}>
           <span className={styles.sectionNumber}>01 / OVERVIEW</span>
-          <h2>从一场比赛，<br />到全球篮球文化。</h2>
+          <h2>从一场比赛，<br />到全球篮球文化</h2>
         </div>
-        <p>
-          时间轴以中线为界：左侧记录 NBA 联盟大事件，右侧记录 Nike 与 Jordan Brand 球星合作。
-          年份从现在向下回溯至 1946 年，事件条目附有来源，便于查阅与核对。
-        </p>
+      </section>
+
+      <section className={styles.classicGames} aria-labelledby="nba-classic-games-title">
+        <div className={styles.classicGamesHeader}>
+          <div>
+            <span className={styles.sectionNumber}>FEATURED / CLASSIC GAMES</span>
+            <h2 id="nba-classic-games-title">三场经典比赛</h2>
+          </div>
+          <span className={styles.classicGamesCount}>1970 — 2013</span>
+        </div>
+        <Suspense fallback={<p className={styles.classicGamesStatus} role="status">正在读取 Neon 经典比赛资料…</p>}>
+          <ClassicGamesContent />
+        </Suspense>
       </section>
 
       <section className={styles.history} aria-labelledby="nba-history-title">

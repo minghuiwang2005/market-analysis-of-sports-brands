@@ -361,6 +361,57 @@ export const sportsTimelineEventSources = pgTable(
   ],
 );
 
+export const nbaClassicGames = pgTable(
+  "nba_classic_games",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventKey: varchar("event_key", { length: 120 }).notNull(),
+    occurredYear: integer("occurred_year").notNull(),
+    gameLabel: varchar("game_label", { length: 120 }).notNull(),
+    title: varchar("title", { length: 240 }).notNull(),
+    matchup: varchar("matchup", { length: 180 }).notNull(),
+    result: varchar("result", { length: 80 }).notNull(),
+    description: text("description").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    published: boolean("published").notNull().default(false),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("nba_classic_games_event_key_unique").on(table.eventKey),
+    index("nba_classic_games_published_year_order_idx").on(
+      table.published,
+      table.occurredYear,
+      table.sortOrder,
+    ),
+    check("nba_classic_games_year_range_check", sql`${table.occurredYear} BETWEEN 1946 AND 2200`),
+  ],
+);
+
+export const nbaClassicGameSources = pgTable(
+  "nba_classic_game_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gameId: uuid("game_id")
+      .notNull()
+      .references(() => nbaClassicGames.id, { onDelete: "restrict" }),
+    url: text("url").notNull(),
+    publisher: varchar("publisher", { length: 160 }).notNull(),
+    sourceTitle: varchar("source_title", { length: 300 }).notNull(),
+    evidenceNote: text("evidence_note").notNull(),
+    verificationStatus: varchar("verification_status", { length: 24 }).notNull().default("needs_review"),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("nba_classic_game_sources_game_url_unique").on(table.gameId, table.url),
+    index("nba_classic_game_sources_game_status_idx").on(table.gameId, table.verificationStatus),
+    check(
+      "nba_classic_game_sources_verification_status_check",
+      sql`${table.verificationStatus} IN ('verified', 'needs_review')`,
+    ),
+  ],
+);
+
 export type AthleteCareerHighlight = {
   value: string;
   label: string;
