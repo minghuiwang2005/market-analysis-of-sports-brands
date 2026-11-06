@@ -42,14 +42,20 @@ try {
   await migrate(drizzle(pool), { migrationsFolder: "./drizzle" });
   console.log("Production database migrations completed.");
 } catch (error) {
-  const message = String(error?.message ?? "Unknown database migration error").replace(
+  const databaseError = error?.cause ?? error;
+  const message = String(databaseError?.message ?? "Unknown database migration error")
+    .replace(
     /postgres(?:ql)?:\/\/[^\s"']+/gi,
     "[REDACTED_DATABASE_URL]",
-  );
+    )
+    .slice(0, 1_000);
   console.error("Production database migration failed:", {
-    name: error?.name ?? "Error",
-    code: error?.code ?? "UNKNOWN",
+    name: databaseError?.name ?? error?.name ?? "Error",
+    code: databaseError?.code ?? "UNKNOWN",
+    severity: databaseError?.severity,
     message,
+    detail: databaseError?.detail,
+    hint: databaseError?.hint,
   });
   process.exitCode = 1;
 } finally {
