@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then pnpm db:migrate; fi && pnpm build",
+    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node scripts/migrate-production.mjs; fi && pnpm build",
     "test:proxy": "node --test tests/proxy-api-localization.test.mjs",
     "start": "next start",
     "lint": "eslint",
