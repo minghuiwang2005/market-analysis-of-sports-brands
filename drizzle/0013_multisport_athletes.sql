@@ -37,7 +37,7 @@ DECLARE
   seed jsonb;
   item jsonb;
   sport_id uuid;
-  athlete_id uuid;
+  v_athlete_id uuid;
   line_id uuid;
   relation_scope text;
   image_page text;
@@ -108,14 +108,14 @@ BEGIN
       portrait_alt_en = EXCLUDED.portrait_alt_en, portrait_source_url = EXCLUDED.portrait_source_url,
       portrait_credit = EXCLUDED.portrait_credit, portrait_license = EXCLUDED.portrait_license,
       portrait_license_url = EXCLUDED.portrait_license_url, published = true, updated_at = now()
-    RETURNING id INTO athlete_id;
+    RETURNING id INTO v_athlete_id;
 
     relation_scope := CASE item->>'type' WHEN 'signature' THEN 'signature_line' ELSE 'partnership_status' END;
     INSERT INTO athlete_shoe_lines (
       athlete_id, brand, line_name, line_name_en, relationship_type, relationship_status,
       started_year, ended_year, representative_models, sort_order
     ) VALUES (
-      athlete_id, 'Nike', item->>'lineZh', item->>'lineEn', item->>'type', item->>'status',
+      v_athlete_id, 'Nike', item->>'lineZh', item->>'lineEn', item->>'type', item->>'status',
       NULLIF(item->>'start', '')::integer, NULLIF(item->>'end', '')::integer,
       COALESCE(item->'models', '[]'::jsonb), 1
     )
@@ -129,7 +129,7 @@ BEGIN
     INSERT INTO athlete_sources (
       athlete_id, shoe_line_id, source_url, publisher, title, claim_scope, evidence_note, verification_status
     ) VALUES (
-      athlete_id, line_id, item->>'relUrl', 'NIKE, Inc.', item->>'relTitle', relation_scope,
+      v_athlete_id, line_id, item->>'relUrl', 'NIKE, Inc.', item->>'relTitle', relation_scope,
       item->>'relNote', 'verified'
     )
     ON CONFLICT (athlete_id, source_url, claim_scope) DO UPDATE SET
@@ -138,7 +138,7 @@ BEGIN
 
     IF item ? 'signatureUrl' THEN
       INSERT INTO athlete_sources (athlete_id, shoe_line_id, source_url, publisher, title, claim_scope, evidence_note, verification_status)
-      VALUES (athlete_id, line_id, item->>'signatureUrl', 'NIKE, Inc.', item->>'signatureTitle', 'signature_line', item->>'signatureNote', 'verified')
+      VALUES (v_athlete_id, line_id, item->>'signatureUrl', 'NIKE, Inc.', item->>'signatureTitle', 'signature_line', item->>'signatureNote', 'verified')
       ON CONFLICT (athlete_id, source_url, claim_scope) DO UPDATE SET
         shoe_line_id = EXCLUDED.shoe_line_id, title = EXCLUDED.title, evidence_note = EXCLUDED.evidence_note,
         verification_status = 'verified', updated_at = now();
@@ -146,7 +146,7 @@ BEGIN
 
     IF item ? 'endUrl' THEN
       INSERT INTO athlete_sources (athlete_id, source_url, publisher, title, claim_scope, evidence_note, verification_status)
-      VALUES (athlete_id, item->>'endUrl', 'On', item->>'endTitle', 'partnership_status',
+      VALUES (v_athlete_id, item->>'endUrl', 'On', item->>'endTitle', 'partnership_status',
         'On 于 2026 年 9 月宣布与姆巴佩建立足球合作。 / On announced its football partnership with Mbappé in September 2026.',
         'verified')
       ON CONFLICT (athlete_id, source_url, claim_scope) DO UPDATE SET
@@ -156,10 +156,10 @@ BEGIN
     image_page := 'https://commons.wikimedia.org/wiki/File:' || (item->>'file');
     INSERT INTO athlete_sources (athlete_id, source_url, publisher, title, claim_scope, evidence_note, verification_status)
     VALUES
-      (athlete_id, image_page, 'Wikimedia Commons', 'Athlete portrait file', 'portrait',
+      (v_athlete_id, image_page, 'Wikimedia Commons', 'Athlete portrait file', 'portrait',
         '图片署名：' || (item->>'credit') || '。 / Image attribution: ' || (item->>'credit') || '.',
         'verified'),
-      (athlete_id, image_page, 'Wikimedia Commons', 'Image license', 'image_license',
+      (v_athlete_id, image_page, 'Wikimedia Commons', 'Image license', 'image_license',
         (item->>'license') || ' · ' || (item->>'licenseUrl') || ' · Attribution: ' || (item->>'credit'),
         'verified')
     ON CONFLICT (athlete_id, source_url, claim_scope) DO UPDATE SET
