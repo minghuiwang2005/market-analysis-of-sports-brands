@@ -1,8 +1,10 @@
 ALTER TABLE athlete_shoe_lines
   ADD COLUMN IF NOT EXISTS line_name_en varchar(120);
+--> statement-breakpoint
 
 ALTER TABLE athlete_shoe_lines
   ADD COLUMN IF NOT EXISTS relationship_type varchar(24) NOT NULL DEFAULT 'signature';
+--> statement-breakpoint
 
 DO $$
 BEGIN
@@ -12,6 +14,7 @@ BEGIN
       CHECK (relationship_type IN ('signature', 'endorsement'));
   END IF;
 END $$;
+--> statement-breakpoint
 
 UPDATE star_sports
 SET content_status = 'active',
@@ -27,6 +30,7 @@ SET content_status = 'active',
     END,
     updated_at = now()
 WHERE slug IN ('football', 'tennis', 'athletics');
+--> statement-breakpoint
 
 DO $$
 DECLARE
@@ -162,10 +166,12 @@ BEGIN
       title = EXCLUDED.title, evidence_note = EXCLUDED.evidence_note, verification_status = 'verified', updated_at = now();
   END LOOP;
 END $$;
+--> statement-breakpoint
 
 UPDATE model_fields
 SET label = '签名 / 合作明星', updated_at = now()
 WHERE level = 'spu' AND key = 'signing_athlete' AND label = '签约明星';
+--> statement-breakpoint
 
 DO $$
 DECLARE
