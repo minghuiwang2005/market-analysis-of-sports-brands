@@ -33,13 +33,50 @@ export async function readJson(request: Request) {
   }
 }
 
-export function errorResponse(error: unknown) {
+const englishErrorMessages: Record<string, string> = {
+  INVALID_JSON: "The request body is not valid JSON.",
+  UNAUTHENTICATED: "Please sign in as an administrator.",
+  INVALID_ORIGIN: "The request origin could not be verified.",
+  DATABASE_NOT_CONFIGURED: "Neon is not configured. Set DATABASE_URL in the deployment environment.",
+  DATABASE_UNAVAILABLE: "Neon is temporarily unavailable. Check the database connection and migration status.",
+  DUPLICATE_VALUE: "That code or unique value already exists.",
+  INVALID_RELATION: "The related record does not exist or is still referenced elsewhere.",
+  VALIDATION_ERROR: "Please review the highlighted fields.",
+  NBA_ATHLETE_NOT_FOUND: "Select a published NBA athlete or create an unlinked candidate assessment.",
+  MODEL_NOT_CONFIGURED: "No SES model version has been published yet.",
+  MODEL_VERSION_NOT_FOUND: "The requested model version does not exist.",
+  MODEL_CONFIGURATION_INVALID: "The saved model configuration is invalid.",
+  EVALUATION_NOT_FOUND: "The assessment was not found.",
+  EVALUATION_FINALIZED: "This finalized assessment is read-only. Create a recalculation draft to make changes.",
+  EVALUATION_CREATE_FAILED: "The assessment could not be created.",
+  METRIC_NOT_FOUND: "This metric is not part of the selected model.",
+  INVALID_EVALUATION_SOURCE: "Sources must belong to this metric, remain un-rejected, and be public by the assessment date.",
+  EVIDENCE_AFTER_AS_OF: "Metric periods must end on or before the assessment date.",
+  INVALID_ELIGIBILITY_SOURCE: "Eligibility sources must be verified, belong to this assessment, and be public by the assessment date.",
+  ELIGIBILITY_SOURCE_REQUIRED: "Add a public source before setting the competitor contract status.",
+  INSUFFICIENT_EVALUATION_DATA: "Coverage or required dimensions are insufficient to finalize this assessment.",
+  MAJOR_CONCERN_REVIEW_PENDING: "Resolve the major reputation concern before finalizing this assessment.",
+  METRIC_REVIEW_PENDING: "Review pending metric scores or clear their unverified values before finalizing.",
+  EVALUATION_FINALIZE_CONFLICT: "The assessment changed while it was being finalized. Refresh and try again.",
+  EVALUATION_FINALIZE_FAILED: "The assessment could not be finalized. Refresh and try again.",
+  MODEL_VERSION_EXISTS: "That model version already exists and cannot be overwritten.",
+  INVALID_RESEARCH_SOURCES: "Provide between 1 and 30 valid sources.",
+  INVALID_ID: "The record ID is invalid.",
+};
+
+function localeFromCookie(cookie: string | null) {
+  const value = cookie?.split(";").map((part) => part.trim()).find((part) => part.startsWith("site_locale="))?.slice("site_locale=".length);
+  return value === "en" ? "en" : "zh";
+}
+
+export function errorResponse(error: unknown, locale: "zh" | "en" = "zh") {
+  const english = locale === "en";
   if (error instanceof DatabaseConfigurationError) {
     return Response.json(
       {
         error: {
           code: "DATABASE_NOT_CONFIGURED",
-          message: "尚未连接 Neon 数据库。复制 .env.example 为 .env.local，并填写数据库连接信息。",
+          message: english ? englishErrorMessages.DATABASE_NOT_CONFIGURED : "尚未连接 Neon 数据库。复制 .env.example 为 .env.local，并填写数据库连接信息。",
         },
       },
       { status: 503 },
@@ -51,8 +88,8 @@ export function errorResponse(error: unknown) {
       {
         error: {
           code: error.code,
-          message: error.message,
-          ...(error.details ? { fields: error.details } : {}),
+          message: english ? englishErrorMessages[error.code] ?? "The request could not be completed. Please try again." : error.message,
+          ...(error.details ? { fields: english ? Object.fromEntries(Object.keys(error.details).map((key) => [key, "Please check this field."])) : error.details } : {}),
         },
       },
       { status: error.status },
@@ -65,13 +102,13 @@ export function errorResponse(error: unknown) {
       : "";
   if (databaseCode === "23505") {
     return Response.json(
-      { error: { code: "DUPLICATE_VALUE", message: "该编码或唯一字段值已存在，请检查后重试。" } },
+      { error: { code: "DUPLICATE_VALUE", message: english ? englishErrorMessages.DUPLICATE_VALUE : "该编码或唯一字段值已存在，请检查后重试。" } },
       { status: 409 },
     );
   }
   if (databaseCode === "23503") {
     return Response.json(
-      { error: { code: "INVALID_RELATION", message: "关联记录不存在或仍被其他记录引用。" } },
+      { error: { code: "INVALID_RELATION", message: english ? englishErrorMessages.INVALID_RELATION : "关联记录不存在或仍被其他记录引用。" } },
       { status: 409 },
     );
   }
@@ -80,7 +117,7 @@ export function errorResponse(error: unknown) {
     {
       error: {
         code: "DATABASE_UNAVAILABLE",
-        message: "暂时无法读取或保存 Neon 数据，请确认数据库连接和迁移状态后重试。",
+        message: english ? englishErrorMessages.DATABASE_UNAVAILABLE : "暂时无法读取或保存 Neon 数据，请确认数据库连接和迁移状态后重试。",
       },
     },
     { status: 503 },
@@ -101,6 +138,9 @@ export async function withApiErrors<T>(operation: () => Promise<T>, status = 200
     }
     return successResponse(await operation(), status);
   } catch (error) {
-    return errorResponse(error);
+    const requestHeaders = await headers();
+    return errorResponse(error, localeFromCookie(requestHeaders.get("cookie")));
   }
 }
+
+export { localeFromCookie };

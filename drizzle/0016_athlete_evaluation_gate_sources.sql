@@ -1,0 +1,2 @@
+ALTER TABLE "athlete_evaluation_runs" ADD COLUMN "competitor_evidence_source_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "athlete_evaluation_runs" ADD COLUMN "major_concern_evidence_source_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;

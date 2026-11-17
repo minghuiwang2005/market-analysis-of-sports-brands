@@ -99,6 +99,34 @@
       "when": 1793899815602,
       "tag": "0013_multisport_athletes",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794885919328,
+      "tag": "0014_athlete_selection_evaluations",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794886067707,
+      "tag": "0015_athlete_evaluation_gate_inputs",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794886367881,
+      "tag": "0016_athlete_evaluation_gate_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794889037530,
+      "tag": "0017_athlete_evaluation_model_change_notes",
+      "breakpoints": true
     }
   ]
 }

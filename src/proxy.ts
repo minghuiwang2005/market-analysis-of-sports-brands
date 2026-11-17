@@ -30,7 +30,7 @@ export function proxy(request: NextRequest) {
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!verifySessionToken(token)) {
-    if (apiPath) return Response.json({ error: { code: "UNAUTHENTICATED", message: "请先登录管理员账号。" } }, { status: 401 });
+    if (apiPath) return Response.json({ error: { code: "UNAUTHENTICATED", message: request.cookies.get(localeCookie)?.value === "en" ? "Please sign in as an administrator." : "请先登录管理员账号。" } }, { status: 401 });
     const login = new URL("/login", request.url);
     login.searchParams.set("next", `${publicPath}${request.nextUrl.search}`);
     return NextResponse.redirect(login);

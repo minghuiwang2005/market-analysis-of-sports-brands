@@ -1,0 +1,2 @@
+ALTER TABLE "athlete_evaluation_runs" ADD COLUMN "competitor_exclusive" boolean;--> statement-breakpoint
+ALTER TABLE "athlete_evaluation_runs" ADD COLUMN "major_concern_needs_review" boolean DEFAULT false NOT NULL;

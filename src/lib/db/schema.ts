@@ -23,6 +23,24 @@ const timestamps = () => ({
 });
 
 export const productLevelEnum = pgEnum("product_level", ["spu", "sku"]);
+export const productTierEnum = pgEnum("product_tier", [
+  "signature_retail",
+  "pe",
+  "regional_exclusive",
+  "retro",
+  "collab",
+]);
+export const evaluationScenarioEnum = pgEnum("athlete_evaluation_scenario", [
+  "china-priority",
+  "north-america",
+  "product-portfolio",
+]);
+export const evaluationStatusEnum = pgEnum("athlete_evaluation_status", ["complete", "provisional", "insufficient_data"]);
+export const evaluationWorkflowEnum = pgEnum("athlete_evaluation_workflow", ["draft", "finalized"]);
+export const evaluationEligibilityEnum = pgEnum("athlete_evaluation_eligibility", ["eligible", "blocked", "review_required"]);
+export const evaluationMetricStatusEnum = pgEnum("athlete_evaluation_metric_status", ["verified", "needs_review", "missing", "conflict"]);
+export const evaluationSourceStatusEnum = pgEnum("athlete_evaluation_source_status", ["suggested", "verified", "rejected"]);
+export const athleteProductLinkStatusEnum = pgEnum("athlete_product_link_status", ["needs_review", "verified", "rejected"]);
 export const modelFieldTypeEnum = pgEnum("model_field_type", [
   "short_text",
   "long_text",
@@ -106,6 +124,8 @@ export const spuProducts = pgTable(
     spuCode: varchar("spu_code", { length: 120 }).notNull().unique(),
     name: varchar("name", { length: 240 }).notNull(),
     brand: varchar("brand", { length: 120 }).notNull(),
+    productTier: productTierEnum("product_tier"),
+    launchMarket: varchar("launch_market", { length: 80 }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps(),
   },
@@ -124,6 +144,8 @@ export const skuProducts = pgTable(
       .references(() => spuProducts.id, { onDelete: "restrict" }),
     skuCode: varchar("sku_code", { length: 120 }).notNull().unique(),
     name: varchar("name", { length: 240 }).notNull(),
+    productTier: productTierEnum("product_tier"),
+    launchMarket: varchar("launch_market", { length: 80 }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     archivedWithSpu: boolean("archived_with_spu").notNull().default(false),
     ...timestamps(),
@@ -571,5 +593,138 @@ export const athleteSources = pgTable(
       sql`${table.claimScope} IN ('biography', 'signature_line', 'partnership_status', 'portrait', 'image_license', 'career_highlight')`,
     ),
     check("athlete_sources_verification_status_check", sql`${table.verificationStatus} IN ('verified', 'needs_review')`),
+  ],
+);
+
+export const athleteEvaluationModels = pgTable(
+  "athlete_evaluation_models",
+  {
+    version: varchar("version", { length: 40 }).primaryKey(),
+    configuration: jsonb("configuration").$type<Record<string, unknown>>().notNull(),
+    changeNote: text("change_note"),
+    active: boolean("active").notNull().default(false),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+    publishedBy: varchar("published_by", { length: 160 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("athlete_evaluation_models_single_active_idx").on(table.active).where(sql`${table.active}`),
+    index("athlete_evaluation_models_published_idx").on(table.publishedAt, table.version),
+  ],
+);
+
+export const athleteEvaluationRuns = pgTable(
+  "athlete_evaluation_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    athleteId: uuid("athlete_id").references(() => starAthletes.id, { onDelete: "restrict" }),
+    candidateName: varchar("candidate_name", { length: 180 }).notNull(),
+    modelVersion: varchar("model_version", { length: 40 })
+      .notNull()
+      .references(() => athleteEvaluationModels.version, { onDelete: "restrict", onUpdate: "restrict" }),
+    asOfDate: date("as_of_date", { mode: "string" }).notNull(),
+    market: varchar("market", { length: 24 }).notNull(),
+    scenario: evaluationScenarioEnum("scenario").notNull(),
+    ses: doublePrecision("ses"),
+    coverage: doublePrecision("coverage").notNull().default(0),
+    dimensions: jsonb("dimensions").$type<Record<string, number | null>>().notNull().default({}),
+    sensitivity: jsonb("sensitivity").$type<Record<string, number | null>>().notNull().default({}),
+    gates: jsonb("gates").$type<string[]>().notNull().default([]),
+    eligibility: evaluationEligibilityEnum("eligibility").notNull().default("eligible"),
+    competitorExclusive: boolean("competitor_exclusive"),
+    competitorEvidenceSourceIds: jsonb("competitor_evidence_source_ids").$type<string[]>().notNull().default([]),
+    majorConcernNeedsReview: boolean("major_concern_needs_review").notNull().default(false),
+    majorConcernEvidenceSourceIds: jsonb("major_concern_evidence_source_ids").$type<string[]>().notNull().default([]),
+    baseLevel: varchar("base_level", { length: 2 }),
+    recommendedLevel: varchar("recommended_level", { length: 2 }),
+    status: evaluationStatusEnum("status").notNull().default("insufficient_data"),
+    workflowState: evaluationWorkflowEnum("workflow_state").notNull().default("draft"),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    createdBy: varchar("created_by", { length: 160 }),
+    ...timestamps(),
+  },
+  (table) => [
+    index("athlete_evaluation_runs_athlete_created_idx").on(table.athleteId, table.createdAt),
+    index("athlete_evaluation_runs_status_date_idx").on(table.status, table.asOfDate, table.createdAt),
+    index("athlete_evaluation_runs_scenario_workflow_idx").on(table.scenario, table.workflowState, table.createdAt),
+    check("athlete_evaluation_runs_market_check", sql`${table.market} IN ('china', 'north-america')`),
+    check("athlete_evaluation_runs_ses_check", sql`${table.ses} IS NULL OR ${table.ses} BETWEEN 0 AND 100`),
+    check("athlete_evaluation_runs_coverage_check", sql`${table.coverage} BETWEEN 0 AND 100`),
+    check("athlete_evaluation_runs_base_level_check", sql`${table.baseLevel} IS NULL OR ${table.baseLevel} IN ('L0', 'L1', 'L2', 'L3', 'L4')`),
+    check("athlete_evaluation_runs_recommended_level_check", sql`${table.recommendedLevel} IS NULL OR ${table.recommendedLevel} IN ('L0', 'L1', 'L2', 'L3', 'L4')`),
+    check("athlete_evaluation_runs_finalized_check", sql`${table.workflowState} <> 'finalized' OR ${table.finalizedAt} IS NOT NULL`),
+  ],
+);
+
+export const athleteEvaluationMetricScores = pgTable(
+  "athlete_evaluation_metric_scores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => athleteEvaluationRuns.id, { onDelete: "restrict" }),
+    metricKey: varchar("metric_key", { length: 80 }).notNull(),
+    rawValue: jsonb("raw_value").$type<string | number | boolean | null>(),
+    normalizedScore: doublePrecision("normalized_score"),
+    unit: varchar("unit", { length: 80 }),
+    periodStart: date("period_start", { mode: "string" }),
+    periodEnd: date("period_end", { mode: "string" }),
+    rationale: text("rationale"),
+    status: evaluationMetricStatusEnum("status").notNull().default("missing"),
+    reviewer: varchar("reviewer", { length: 160 }),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("athlete_evaluation_metric_scores_run_metric_unique").on(table.runId, table.metricKey),
+    index("athlete_evaluation_metric_scores_status_idx").on(table.status, table.metricKey),
+    check("athlete_evaluation_metric_scores_score_check", sql`${table.normalizedScore} IS NULL OR ${table.normalizedScore} BETWEEN 0 AND 10`),
+    check("athlete_evaluation_metric_scores_period_check", sql`${table.periodEnd} IS NULL OR ${table.periodStart} IS NULL OR ${table.periodEnd} >= ${table.periodStart}`),
+  ],
+);
+
+export const athleteEvaluationSources = pgTable(
+  "athlete_evaluation_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    metricScoreId: uuid("metric_score_id")
+      .notNull()
+      .references(() => athleteEvaluationMetricScores.id, { onDelete: "restrict" }),
+    url: text("url").notNull(),
+    publisher: varchar("publisher", { length: 160 }).notNull(),
+    title: varchar("title", { length: 300 }).notNull(),
+    publishedAt: date("published_at", { mode: "string" }),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+    excerpt: text("excerpt").notNull(),
+    status: evaluationSourceStatusEnum("status").notNull().default("suggested"),
+    ...timestamps(),
+  },
+  (table) => [
+    index("athlete_evaluation_sources_metric_status_idx").on(table.metricScoreId, table.status),
+    index("athlete_evaluation_sources_dates_idx").on(table.publishedAt, table.observedAt),
+    check("athlete_evaluation_sources_url_check", sql`${table.url} ~ '^https?://'`),
+  ],
+);
+
+export const athleteShoeLineProducts = pgTable(
+  "athlete_shoe_line_products",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shoeLineId: uuid("shoe_line_id")
+      .notNull()
+      .references(() => athleteShoeLines.id, { onDelete: "restrict" }),
+    spuId: uuid("spu_id")
+      .notNull()
+      .references(() => spuProducts.id, { onDelete: "restrict" }),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => athleteSources.id, { onDelete: "restrict" }),
+    verificationStatus: athleteProductLinkStatusEnum("verification_status").notNull().default("needs_review"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("athlete_shoe_line_products_pair_unique").on(table.shoeLineId, table.spuId),
+    index("athlete_shoe_line_products_spu_status_idx").on(table.spuId, table.verificationStatus),
+    check("athlete_shoe_line_products_verified_at_check", sql`${table.verificationStatus} <> 'verified' OR ${table.verifiedAt} IS NOT NULL`),
   ],
 );

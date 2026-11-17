@@ -35,7 +35,10 @@ const navGroups: { label: TranslationKey; id: string; items: { href: string; lab
   {
     label: "nav.analysis",
     id: "analysis-menu",
-    items: [{ href: "/analysis", label: "nav.dataAnalysis" }],
+    items: [
+      { href: "/analysis", label: "nav.dataAnalysis" },
+      { href: "/analysis/athlete-model", label: "analysis.athleteModel.title" },
+    ],
   },
   {
     label: "nav.settings",

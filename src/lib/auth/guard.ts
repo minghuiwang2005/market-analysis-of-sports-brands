@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError } from "@/lib/api-response";
+import { AppError, localeFromCookie } from "@/lib/api-response";
 import { SESSION_COOKIE, verifySessionToken, type AdminSession } from "@/lib/auth/session";
 
 export function requireAdminSession(request: Request): AdminSession {
@@ -25,6 +25,6 @@ export async function withAdminApiErrors<T>(request: Request, operation: () => P
     assertSameOrigin(request);
     return successResponse(await operation(), status);
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(error, localeFromCookie(request.headers.get("cookie")));
   }
 }
