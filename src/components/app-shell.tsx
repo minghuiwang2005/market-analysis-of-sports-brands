@@ -168,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           setMobileOpen(false);
                         }}
                       >
-                        {label}
+                        {t(label)}
                       </LocaleLink>
                     );
                   })}
