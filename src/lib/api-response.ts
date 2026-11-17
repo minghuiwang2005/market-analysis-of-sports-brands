@@ -41,6 +41,8 @@ const englishErrorMessages: Record<string, string> = {
   DATABASE_UNAVAILABLE: "Neon is temporarily unavailable. Check the database connection and migration status.",
   DUPLICATE_VALUE: "That code or unique value already exists.",
   INVALID_RELATION: "The related record does not exist or is still referenced elsewhere.",
+  MODEL_TEST_FAILED: "The model provider rejected the connection test.",
+  MODEL_TEST_TIMEOUT: "The model provider did not respond before the timeout.",
   VALIDATION_ERROR: "Please review the highlighted fields.",
   NBA_ATHLETE_NOT_FOUND: "Select a published NBA athlete or create an unlinked candidate assessment.",
   MODEL_NOT_CONFIGURED: "No SES model version has been published yet.",
@@ -89,7 +91,8 @@ export function errorResponse(error: unknown, locale: "zh" | "en" = "zh") {
         error: {
           code: error.code,
           message: english ? englishErrorMessages[error.code] ?? "The request could not be completed. Please try again." : error.message,
-          ...(error.details ? { fields: english ? Object.fromEntries(Object.keys(error.details).map((key) => [key, "Please check this field."])) : error.details } : {}),
+          ...(error.details?.diagnostic ? { diagnostic: error.details.diagnostic } : {}),
+          ...(error.details ? { fields: english ? Object.fromEntries(Object.keys(error.details).filter((key) => key !== "diagnostic").map((key) => [key, "Please check this field."])) : Object.fromEntries(Object.entries(error.details).filter(([key]) => key !== "diagnostic")) } : {}),
         },
       },
       { status: error.status },

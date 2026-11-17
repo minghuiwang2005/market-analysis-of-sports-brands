@@ -2,13 +2,15 @@ export class ApiClientError extends Error {
   readonly status: number;
   readonly code: string;
   readonly fields?: Record<string, string>;
+  readonly diagnostic?: string;
 
-  constructor(status: number, code: string, message: string, fields?: Record<string, string>) {
+  constructor(status: number, code: string, message: string, fields?: Record<string, string>, diagnostic?: string) {
     super(message);
     this.name = "ApiClientError";
     this.status = status;
     this.code = code;
     this.fields = fields;
+    this.diagnostic = diagnostic;
   }
 }
 
@@ -22,7 +24,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}) {
     },
   });
   const payload = (await response.json().catch(() => null)) as
-    | { data?: T; error?: { code?: string; message?: string; fields?: Record<string, string> } }
+    | { data?: T; error?: { code?: string; message?: string; fields?: Record<string, string>; diagnostic?: string } }
     | null;
 
   if (!response.ok || !payload?.data) {
@@ -31,6 +33,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}) {
       payload?.error?.code ?? "REQUEST_FAILED",
       payload?.error?.message ?? "请求失败，请重试。",
       payload?.error?.fields,
+      payload?.error?.diagnostic,
     );
   }
 

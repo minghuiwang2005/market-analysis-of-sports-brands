@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Check, CircleAlert, CircleHelp, LoaderCircle, Plus, RefreshCw, ShieldCheck, Sparkles, Star, Trash2, X } from "lucide-react";
-import { apiRequest } from "@/lib/api-client";
+import { ApiClientError, apiRequest } from "@/lib/api-client";
 import type { ModelConfigSummary } from "@/lib/model-configs/service";
 import styles from "@/app/[locale]/settings/models/page.module.css";
 import { useLocale } from "@/lib/i18n/locale-provider";
@@ -51,6 +51,10 @@ export function ModelConfigsPage() {
     setDraft({ name: item.name, baseUrl: item.baseUrl, model: item.model, apiKey: "", priority: item.priority, timeoutSeconds: item.timeoutSeconds, reasoningEnabled: item.reasoningEnabled, enabled: item.enabled, isDefault: item.isDefault });
     setFormError(""); setDialog(true);
   };
+  const visibleDiagnostic = (message: string | null) => {
+    if (!message || /^(模型服务返回 HTTP|连接超时|连接失败)/.test(message)) return null;
+    return message;
+  };
   const save = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true); setFormError("");
     try {
@@ -75,7 +79,12 @@ export function ModelConfigsPage() {
         setToast(kind === "toggle" ? (item.enabled ? t("modelConfigs.deactivated") : t("modelConfigs.activated")) : t("modelConfigs.nowDefault"));
       }
       await load();
-    } catch (error) { setToast(translatedApiError(error, locale)); }
+    } catch (error) {
+      const message = translatedApiError(error, locale);
+      const diagnostic = kind === "test" && error instanceof ApiClientError ? error.diagnostic : null;
+      setToast(diagnostic ? `${message} ${t("modelConfigs.testDiagnostic").replace("{message}", diagnostic)}` : message);
+      if (kind === "test") await load();
+    }
     finally { setPendingAction(null); }
   };
 
@@ -87,11 +96,13 @@ export function ModelConfigsPage() {
     <div className={styles.note}><ShieldCheck size={17}/><span>{t("modelConfigs.securityNote")}</span><button title={t("modelConfigs.routingNote")} aria-label={t("modelConfigs.about")}><CircleHelp size={16}/></button></div>
     {loading ? <div className={styles.state}><LoaderCircle className={styles.spin}/>{t("modelConfigs.loading")}</div> : pageError ? <div className={styles.errorState}><CircleAlert/><div><strong>{t("modelConfigs.unavailableTitle")}</strong><p>{pageError}</p><button className={styles.secondaryButton} onClick={() => void load()}><RefreshCw size={14}/>{t("common.retry")}</button></div></div> : configs.length === 0 ? <div className={styles.empty}><Sparkles size={24}/><h2>{t("modelConfigs.emptyTitle")}</h2><p>{t("modelConfigs.emptyDescription")}</p><button className={styles.addButton} onClick={openCreate}><Plus size={16}/>{t("modelConfigs.addFirst")}</button></div> : <section className={styles.grid} aria-label={t("modelConfigs.listLabel")}>{configs.map((item) => {
       const busy = pendingAction?.endsWith(`:${item.id}`) ?? false;
+      const diagnostic = item.lastTestStatus === "failed" ? visibleDiagnostic(item.lastTestMessage) : null;
       return <article className={styles.card} key={item.id}>
         <div className={styles.cardTop}><div className={styles.brandLine}><h2>{item.name}</h2>{item.isDefault && <span className={styles.defaultBadge}>{t("modelConfigs.defaultBadge")}</span>}</div><span className={`${styles.status} ${item.enabled ? styles.available : styles.disabled}`}><i/>{item.enabled ? t("modelConfigs.available") : t("modelConfigs.disabled")}</span></div>
         <p className={styles.url}>{item.baseUrl}</p>
         <div className={styles.details}><Info label={t("modelConfigs.model")} value={item.model}/><Info label={t("modelConfigs.apiKey")} value={item.apiKeyMasked} mono/><Info label={t("modelConfigs.priority")} value={formatLocaleNumber(item.priority, locale)}/><Info label={t("modelConfigs.timeout")} value={`${formatLocaleNumber(item.timeoutSeconds, locale)}s`}/><Info label={t("modelConfigs.reasoning")} value={item.reasoningEnabled ? t("modelConfigs.on") : t("modelConfigs.off")}/><Info label={t("modelConfigs.cooldown")} value="—"/></div>
         <div className={styles.testLine}>{item.lastTestStatus === "success" ? <Check size={14}/> : item.lastTestStatus === "failed" ? <CircleAlert size={14}/> : <span className={styles.testDot}/>}<span>{item.lastTestStatus === "success" ? t("modelConfigs.testSuccess") : item.lastTestStatus === "failed" ? t("modelConfigs.testFailed") : t("modelConfigs.notTested")}</span>{item.lastTestedAt && <time>{new Intl.DateTimeFormat(locale === "en" ? "en-US" : "zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date(item.lastTestedAt))}</time>}</div>
+        {diagnostic && <p className={styles.testDiagnostic} role="status">{t("modelConfigs.testDiagnostic").replace("{message}", diagnostic)}</p>}
         <div className={styles.actions}><button onClick={() => void action(item,"test")} disabled={busy}>{busy && pendingAction === `test:${item.id}` ? <LoaderCircle className={styles.spin}/> : <RefreshCw size={15}/>} {t("modelConfigs.test")}</button><button onClick={() => openEdit(item)}><span>{t("modelConfigs.edit")}</span></button><button onClick={() => void action(item,"toggle")} disabled={busy}>{item.enabled ? t("modelConfigs.deactivate") : t("modelConfigs.activate")}</button>{!item.isDefault && <button onClick={() => void action(item,"default")} disabled={busy}><Star size={14}/>{t("modelConfigs.setDefault")}</button>}<button className={styles.delete} onClick={() => void action(item,"delete")} disabled={busy}><Trash2 size={14}/>{t("modelConfigs.delete")}</button></div>
       </article>;
     })}</section>}
